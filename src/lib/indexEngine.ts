@@ -43,18 +43,25 @@ function outlook(momentum: number): IndexEntry["outlook"] {
   return "Stable";
 }
 
+/**
+ * Score = 50 at each scope's own steady state (recent 14d mass ≈ its 90-day
+ * baseline), rising toward 100 as activity doubles/triples and falling as it
+ * quiets. Self-calibrating: backfilled history becomes the baseline instead of
+ * inflating the score.
+ */
 function entry(
   key: string,
   label: string,
   recent: number,
   prior: number,
-  maxRecent: number,
+  baseline14: number,
   events14d: number,
   topCountry?: string | null,
 ): IndexEntry {
-  const base = maxRecent > 0 ? (50 * Math.log1p(recent)) / Math.log1p(maxRecent) : 0;
+  const ratio = recent / Math.max(baseline14, 1);
+  const base = 50 * Math.sqrt(ratio); // 1x baseline → 50, 2x → ~71, 4x → 100
   const momentum = Math.max(-1, Math.min(1, (recent - prior) / Math.max(prior, 1)));
-  const score = Math.round(Math.max(0, Math.min(100, base + 25 + momentum * 25)));
+  const score = Math.round(Math.max(0, Math.min(100, base + momentum * 10)));
   return {
     key,
     label,
@@ -67,95 +74,120 @@ function entry(
   };
 }
 
+interface Agg {
+  recent: number; // severity mass, last 14d
+  prior: number; // severity mass, 14-28d ago
+  total90: number; // severity mass, full 90d window
+  span90: number; // days of history actually present (≥1)
+  events: number;
+  byCountry: Map<string, number>;
+}
+
+function newAgg(): Agg {
+  return { recent: 0, prior: 0, total90: 0, span90: 1, events: 0, byCountry: new Map() };
+}
+
+/** Expected 14-day mass given this scope's own 90-day history. */
+function baseline14(a: Agg): number {
+  return (a.total90 / Math.max(a.span90, 14)) * 14;
+}
+
 export async function computeIndex(): Promise<CyberIndex> {
   const rows = await db.execute<{
     country: string | null;
     severity: string;
-    recent: boolean;
+    bucket: string; // recent | prior | old
+    age_days: number;
     n: number;
   }>(sql`
-    SELECT country, severity, occurred_at >= now() - interval '14 days' AS recent, count(*)::int AS n
+    SELECT country, severity,
+      CASE
+        WHEN occurred_at >= now() - interval '14 days' THEN 'recent'
+        WHEN occurred_at >= now() - interval '28 days' THEN 'prior'
+        ELSE 'old'
+      END AS bucket,
+      floor(extract(epoch FROM now() - min(occurred_at)) / 86400)::int AS age_days,
+      count(*)::int AS n
     FROM threat_events
-    WHERE occurred_at >= now() - interval '28 days'
+    WHERE occurred_at >= now() - interval '90 days'
     GROUP BY 1, 2, 3
   `);
 
-  const regionAgg = new Map<
-    string,
-    { recent: number; prior: number; events: number; byCountry: Map<string, number> }
-  >();
-  let gRecent = 0;
-  let gPrior = 0;
-  let gEvents = 0;
+  const regionAgg = new Map<string, Agg>();
+  const globalAgg = newAgg();
 
-  for (const r of rows) {
-    const mass = (SEV_WEIGHT[r.severity] ?? 1) * r.n;
-    if (r.recent) {
-      gRecent += mass;
-      gEvents += r.n;
-    } else {
-      gPrior += mass;
-    }
-    const region = countryRegion(r.country?.trim());
-    if (!region) continue;
-    const agg =
-      regionAgg.get(region) ??
-      { recent: 0, prior: 0, events: 0, byCountry: new Map<string, number>() };
-    if (r.recent) {
+  const feed = (agg: Agg, r: (typeof rows)[number], mass: number) => {
+    agg.total90 += mass;
+    agg.span90 = Math.max(agg.span90, Math.min(r.age_days, 90));
+    if (r.bucket === "recent") {
       agg.recent += mass;
       agg.events += r.n;
       if (r.country) {
-        agg.byCountry.set(
-          r.country.trim(),
-          (agg.byCountry.get(r.country.trim()) ?? 0) + r.n,
-        );
+        const cc = r.country.trim();
+        agg.byCountry.set(cc, (agg.byCountry.get(cc) ?? 0) + r.n);
       }
-    } else {
+    } else if (r.bucket === "prior") {
       agg.prior += mass;
     }
+  };
+
+  for (const r of rows) {
+    const mass = (SEV_WEIGHT[r.severity] ?? 1) * r.n;
+    feed(globalAgg, r, mass);
+    const region = countryRegion(r.country?.trim());
+    if (!region) continue;
+    const agg = regionAgg.get(region) ?? newAgg();
+    feed(agg, r, mass);
     regionAgg.set(region, agg);
   }
 
-  const maxRecent = Math.max(1, ...[...regionAgg.values()].map((a) => a.recent));
   const regions = Object.keys(REGION_LABELS).map((code) => {
-    const agg = regionAgg.get(code) ?? {
-      recent: 0,
-      prior: 0,
-      events: 0,
-      byCountry: new Map<string, number>(),
-    };
+    const agg = regionAgg.get(code) ?? newAgg();
     const topCountry =
       [...agg.byCountry.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-    return entry(code, REGION_LABELS[code], agg.recent, agg.prior, maxRecent, agg.events, topCountry);
+    return entry(
+      code,
+      REGION_LABELS[code],
+      agg.recent,
+      agg.prior,
+      baseline14(agg),
+      agg.events,
+      topCountry,
+    );
   });
 
-  const sectorRows = await db.execute<{ sector: string; recent: boolean; n: number }>(sql`
-    SELECT metadata->>'sector' AS sector, occurred_at >= now() - interval '14 days' AS recent, count(*)::int AS n
+  const sectorRows = await db.execute<{ sector: string; bucket: string; age_days: number; n: number }>(sql`
+    SELECT metadata->>'sector' AS sector,
+      CASE
+        WHEN occurred_at >= now() - interval '14 days' THEN 'recent'
+        WHEN occurred_at >= now() - interval '28 days' THEN 'prior'
+        ELSE 'old'
+      END AS bucket,
+      floor(extract(epoch FROM now() - min(occurred_at)) / 86400)::int AS age_days,
+      count(*)::int AS n
     FROM threat_events
-    WHERE type = 'ransomware_victim' AND occurred_at >= now() - interval '28 days'
+    WHERE type = 'ransomware_victim' AND occurred_at >= now() - interval '90 days'
       AND metadata->>'sector' IS NOT NULL AND metadata->>'sector' != '' AND metadata->>'sector' != 'Not Found'
     GROUP BY 1, 2
   `);
-  const sectorAgg = new Map<string, { recent: number; prior: number }>();
+  const sectorAgg = new Map<string, Agg>();
   for (const r of sectorRows) {
-    const agg = sectorAgg.get(r.sector) ?? { recent: 0, prior: 0 };
-    if (r.recent) agg.recent += r.n;
-    else agg.prior += r.n;
+    const agg = sectorAgg.get(r.sector) ?? newAgg();
+    feed(agg, { ...r, country: null, severity: "high" }, r.n);
     sectorAgg.set(r.sector, agg);
   }
-  const maxSector = Math.max(1, ...[...sectorAgg.values()].map((a) => a.recent));
   const sectors = [...sectorAgg.entries()]
-    .map(([name, a]) => entry(name, name, a.recent * 4, a.prior * 4, maxSector * 4, a.recent))
+    .map(([name, a]) => entry(name, name, a.recent, a.prior, baseline14(a), a.events))
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
 
   const global = entry(
     "global",
     "Global",
-    gRecent,
-    gPrior,
-    Math.max(gRecent, 1),
-    gEvents,
+    globalAgg.recent,
+    globalAgg.prior,
+    baseline14(globalAgg),
+    globalAgg.events,
     null,
   );
 

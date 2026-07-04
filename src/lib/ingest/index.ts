@@ -8,6 +8,7 @@ import { feodoSource } from "./sources/feodo";
 import { dshieldSource } from "./sources/dshield";
 import { urlhausSource } from "./sources/urlhaus";
 import { ransomwareSource } from "./sources/ransomware";
+import { threatfoxSource } from "./sources/threatfox";
 
 /** Registration order = execution order for "all" (CVE anchors before enrichment, geo last). */
 const SOURCES: FeedSource[] = [
@@ -18,10 +19,18 @@ const SOURCES: FeedSource[] = [
   dshieldSource,
   urlhausSource,
   ransomwareSource,
+  threatfoxSource,
 ];
 
 /** Sources cheap enough to refresh every 15 min (no NVD/EPSS crawl). */
-export const FAST_SOURCES = ["cisa_kev", "feodo", "dshield", "urlhaus", "ransomware_live"];
+export const FAST_SOURCES = [
+  "cisa_kev",
+  "feodo",
+  "dshield",
+  "urlhaus",
+  "ransomware_live",
+  "threatfox",
+];
 /** Rate-limited enrichment sources — hourly is plenty. */
 export const SLOW_SOURCES = ["nvd", "epss"];
 
