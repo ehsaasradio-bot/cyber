@@ -58,8 +58,11 @@ export default function Timeline({ window: win }: { window: "24h" | "7d" }) {
             onMouseLeave={() => setHover(null)}
           >
             <div
-              className="flex w-full flex-col-reverse overflow-hidden rounded-t-sm opacity-80 transition-opacity group-hover:opacity-100"
-              style={{ height: `${(b.total / max) * 100}%` }}
+              className="flex w-full origin-bottom animate-bar-grow flex-col-reverse overflow-hidden rounded-t-sm opacity-80 transition-opacity group-hover:opacity-100"
+              style={{
+                height: `${(b.total / max) * 100}%`,
+                animationDelay: `${i * 25}ms`,
+              }}
             >
               {SEV_COLORS.map(([sev, color]) =>
                 b.bySeverity[sev] > 0 ? (

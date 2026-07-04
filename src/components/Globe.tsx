@@ -79,6 +79,14 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
     return () => ro.disconnect();
   }, []);
 
+  // Cinematic entrance: start far out, ease down to operating altitude
+  const flyIn = () => {
+    const globe = globeRef.current;
+    if (!globe) return;
+    globe.pointOfView({ lat: 25, lng: 5, altitude: 4.5 }, 0);
+    globe.pointOfView({ lat: 22, lng: 12, altitude: 2.3 }, 2600);
+  };
+
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
       (window as unknown as { __cwGlobe?: GlobeMethods }).__cwGlobe = globeRef.current;
@@ -104,14 +112,15 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
           height={size.height}
           backgroundColor="rgba(0,0,0,0)"
           rendererConfig={{ preserveDrawingBuffer: true }}
+          onGlobeReady={flyIn}
           globeImageUrl="/earth-night.jpg"
           showAtmosphere
           atmosphereColor="#22d3ee"
           atmosphereAltitude={0.18}
           pointsData={points}
-          pointsMerge
           pointLat="lat"
           pointLng="lng"
+          pointLabel="label"
           pointColor={(p: object) => SEVERITY_COLOR[(p as GlobePoint).severity] ?? "#38bdf8"}
           pointAltitude={(p: object) => 0.01 + (p as GlobePoint).size * 0.05}
           pointRadius={(p: object) => 0.18 + (p as GlobePoint).size * 0.22}

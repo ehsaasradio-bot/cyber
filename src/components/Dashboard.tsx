@@ -41,11 +41,17 @@ export default function Dashboard() {
         <Header />
 
         <div className="flex min-h-0 flex-1 items-stretch justify-between gap-4 max-lg:flex-col">
-          <GlassPanel title="Threat Feed" className="pointer-events-auto w-80 xl:w-96 max-lg:h-80 max-lg:w-full">
+          <GlassPanel
+            title="Threat Feed"
+            className="pointer-events-auto w-80 animate-panel-in [animation-delay:200ms] xl:w-96 max-lg:h-80 max-lg:w-full"
+          >
             <ThreatFeed />
           </GlassPanel>
           <div className="flex-1 max-lg:hidden" />
-          <GlassPanel title="Top CVEs" className="pointer-events-auto w-80 xl:w-96 max-lg:h-80 max-lg:w-full">
+          <GlassPanel
+            title="Top CVEs"
+            className="pointer-events-auto w-80 animate-panel-in [animation-delay:350ms] xl:w-96 max-lg:h-80 max-lg:w-full"
+          >
             <TopCves />
           </GlassPanel>
         </div>
@@ -53,7 +59,7 @@ export default function Dashboard() {
         <GlassPanel
           title="Event Timeline"
           action={toggle}
-          className="pointer-events-auto mt-4 h-36 shrink-0"
+          className="pointer-events-auto mt-4 h-36 shrink-0 animate-panel-in [animation-delay:500ms]"
         >
           <Timeline window={win} />
         </GlassPanel>
@@ -64,7 +70,7 @@ export default function Dashboard() {
 
 function Header() {
   return (
-    <header className="pointer-events-auto flex items-center gap-4 px-2 pb-3">
+    <header className="pointer-events-auto flex animate-panel-in items-center gap-4 px-2 pb-3">
       <h1 className="font-mono text-lg font-semibold tracking-[0.35em] text-white">
         CYBER<span className="text-neon">WEATHER</span>
       </h1>
