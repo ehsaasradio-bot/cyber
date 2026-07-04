@@ -2,9 +2,13 @@ import { runSource } from "./runner";
 import { recomputePriorityScores } from "./score";
 import type { FeedSource, RunSummary } from "./types";
 import { kevSource } from "./sources/kev";
+import { nvdSource } from "./sources/nvd";
+import { epssSource } from "./sources/epss";
+import { feodoSource } from "./sources/feodo";
+import { dshieldSource } from "./sources/dshield";
 
 /** Registration order = execution order for "all" (CVE anchors before enrichment, geo last). */
-const SOURCES: FeedSource[] = [kevSource];
+const SOURCES: FeedSource[] = [kevSource, nvdSource, epssSource, feodoSource, dshieldSource];
 
 export function availableSources(): string[] {
   return SOURCES.map((s) => s.name);
