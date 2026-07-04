@@ -8,11 +8,14 @@ import TopCves from "./TopCves";
 import Timeline from "./Timeline";
 import StatChips from "./StatChips";
 import AlertTicker from "./AlertTicker";
+import ViewSelect, { type GlobeView } from "./ViewSelect";
+import EventDetail from "./EventDetail";
 
 type Win = "24h" | "7d";
 
 export default function Dashboard() {
   const [win, setWin] = useState<Win>("24h");
+  const [view, setView] = useState<GlobeView>("all");
 
   const toggle = (
     <div className="flex gap-1">
@@ -35,11 +38,12 @@ export default function Dashboard() {
   return (
     <div className="relative h-screen w-screen overflow-hidden max-lg:h-auto max-lg:overflow-visible">
       <div className="absolute inset-0 z-0 max-lg:relative max-lg:h-[50vh]">
-        <GlobePanel window={win} />
+        <GlobePanel window={win} view={view} />
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col p-4 max-lg:relative max-lg:inset-auto">
-        <Header />
+        <Header viewSelect={<ViewSelect view={view} onChange={setView} />} />
+        <EventDetail />
 
         <div className="flex min-h-0 flex-1 items-stretch justify-between gap-4 max-lg:flex-col">
           <GlassPanel
@@ -69,7 +73,7 @@ export default function Dashboard() {
   );
 }
 
-function Header() {
+function Header({ viewSelect }: { viewSelect: React.ReactNode }) {
   return (
     <header className="pointer-events-auto flex animate-panel-in items-center gap-4 px-2 pb-3">
       <h1 className="font-mono text-lg font-semibold tracking-[0.35em] text-white">
@@ -78,6 +82,7 @@ function Header() {
       <span className="rounded-full border border-neon/30 bg-neon/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-neon">
         Live
       </span>
+      {viewSelect}
       <div className="min-w-0 flex-1 px-4">
         <AlertTicker />
       </div>

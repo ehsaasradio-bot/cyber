@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import SeverityBadge from "./SeverityBadge";
 import { fetcher, SOURCE_LABEL, timeAgo } from "@/lib/format";
-import { focusGlobe } from "@/lib/globeBus";
+import { focusGlobe, selectGlobeEvent } from "@/lib/globeBus";
 
 interface FeedEvent {
   id: number;
@@ -15,13 +15,24 @@ interface FeedEvent {
   country: string | null;
   lat: number | null;
   lon: number | null;
-  metadata: { cveId?: string } | null;
+  ip: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 function activate(e: FeedEvent) {
   if (e.lat != null && e.lon != null) {
     focusGlobe({ lat: e.lat, lng: e.lon, label: e.title, severity: e.severity });
-  } else if (e.metadata?.cveId) {
+    selectGlobeEvent({
+      title: e.title,
+      severity: e.severity,
+      type: e.type,
+      source: e.source,
+      ip: e.ip,
+      country: e.country,
+      occurredAt: e.occurredAt,
+      metadata: e.metadata,
+    });
+  } else if (typeof e.metadata?.cveId === "string") {
     window.open(`https://nvd.nist.gov/vuln/detail/${e.metadata.cveId}`, "_blank", "noopener");
   }
 }

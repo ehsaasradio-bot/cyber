@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { geoEvents, type Window } from "@/lib/queries";
+import { countryCounts, geoEvents, type Window } from "@/lib/queries";
+
+/** Globe view modes → event-type filters (undefined = everything). */
+const VIEW_TYPES: Record<string, string[] | undefined> = {
+  all: undefined,
+  c2: ["c2_server"],
+  attack: ["attack_source"],
+  malware: ["malware_url"],
+  heat: undefined,
+};
 
 export const runtime = "nodejs";
 
@@ -49,22 +58,41 @@ function hash(s: string): number {
 
 export async function GET(req: NextRequest) {
   const window = (req.nextUrl.searchParams.get("window") === "7d" ? "7d" : "24h") as Window;
-  const events = await geoEvents(window);
+  const view = req.nextUrl.searchParams.get("view") ?? "all";
+  const [events, byCountry] = await Promise.all([
+    geoEvents(window, 400, VIEW_TYPES[view]),
+    countryCounts(window),
+  ]);
 
   const points = events.map((e) => ({
+    id: e.dedupKey,
     lat: e.lat!,
     lng: e.lon!,
     size: SIZE[e.severity] ?? 0.3,
     severity: e.severity,
     type: e.type,
+    source: e.source,
+    title: e.title,
     label: `${e.title}${e.country ? ` · ${e.country}` : ""}`,
     occurredAt: e.occurredAt,
+    country: e.country?.trim() ?? null,
+    city: e.city,
+    ip: e.ip,
+    metadata: e.metadata,
   }));
 
-  const arcs = events.slice(0, 60).map((e) => {
-    const [endLat, endLng] = HUBS[hash(e.dedupKey) % HUBS.length];
-    return { startLat: e.lat!, startLng: e.lon!, endLat, endLng, severity: e.severity };
-  });
+  const arcs =
+    view === "heat"
+      ? []
+      : events.slice(0, 60).map((e) => {
+          const [endLat, endLng] = HUBS[hash(e.dedupKey) % HUBS.length];
+          return { startLat: e.lat!, startLng: e.lon!, endLat, endLng, severity: e.severity };
+        });
 
-  return NextResponse.json({ points, arcs, generatedAt: new Date().toISOString() });
+  return NextResponse.json({
+    points,
+    arcs,
+    countryCounts: byCountry,
+    generatedAt: new Date().toISOString(),
+  });
 }

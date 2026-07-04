@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import GlobeGL, { type GlobeMethods } from "react-globe.gl";
 import useSWR from "swr";
-import { onGlobeFocus, type GlobeFocus } from "@/lib/globeBus";
+import {
+  onGlobeFocus,
+  selectGlobeEvent,
+  type GlobeFocus,
+} from "@/lib/globeBus";
+import type { GlobeView } from "./ViewSelect";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -22,12 +27,20 @@ const ARC_COLOR: Record<string, [string, string]> = {
 };
 
 interface GlobePoint {
+  id: string;
   lat: number;
   lng: number;
   size: number;
   severity: string;
+  type: string;
+  source: string;
+  title: string;
   label: string;
   occurredAt: string;
+  country: string | null;
+  city: string | null;
+  ip: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 interface GlobeArc {
@@ -41,6 +54,7 @@ interface GlobeArc {
 interface GlobePayload {
   points: GlobePoint[];
   arcs: GlobeArc[];
+  countryCounts: Record<string, number>;
   generatedAt: string;
 }
 
@@ -52,30 +66,54 @@ interface RingDatum {
 }
 
 interface CountryFeature {
-  properties: { ADMIN: string; ISO_A2: string };
+  properties: { ADMIN: string; ISO_A2: string; ISO_A2_EH?: string };
 }
 
 const FOCUS_ALTITUDE = 0.7;
 const FOCUS_HOLD_MS = 9_000;
+/** Below this camera altitude the deep view kicks in: per-event IP/city labels. */
+const DEEP_ALTITUDE = 0.9;
 
-export default function Globe({ window: win }: { window: "24h" | "7d" }) {
+function countryIso(d: CountryFeature): string {
+  const iso = d.properties.ISO_A2;
+  return iso && iso !== "-99" ? iso : (d.properties.ISO_A2_EH ?? "");
+}
+
+/** Log-scaled fill for the resilience choropleth. */
+function heatColor(count: number, max: number): string {
+  if (!count) return "rgba(34,211,238,0.02)";
+  const t = Math.log1p(count) / Math.log1p(Math.max(max, 2));
+  return `rgba(244,63,94,${(0.06 + t * 0.5).toFixed(3)})`;
+}
+
+export default function Globe({
+  window: win,
+  view,
+}: {
+  window: "24h" | "7d";
+  view: GlobeView;
+}) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
-  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [countries, setCountries] = useState<CountryFeature[]>([]);
   const [hoverCountry, setHoverCountry] = useState<object | null>(null);
   const [focus, setFocus] = useState<(GlobeFocus & { at: number }) | null>(null);
+  const [deep, setDeep] = useState(false);
 
-  const { data } = useSWR<GlobePayload>(`/api/globe?window=${win}`, fetcher, {
-    refreshInterval: 60_000,
-    keepPreviousData: true,
-  });
+  const { data } = useSWR<GlobePayload>(
+    `/api/globe?window=${win}&view=${view}`,
+    fetcher,
+    { refreshInterval: 60_000, keepPreviousData: true },
+  );
 
   // Stable identities keyed on generatedAt so the globe doesn't rebuild on identical polls
   const generatedAt = data?.generatedAt;
   const points = useMemo(() => data?.points ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const arcs = useMemo(() => data?.arcs ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const counts = data?.countryCounts ?? {};
+  const maxCount = useMemo(() => Math.max(1, ...Object.values(counts)), [counts]);
 
   const rings = useMemo<RingDatum[]>(() => {
     const newest: RingDatum[] = [...points]
@@ -83,16 +121,27 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
       .slice(0, 10)
       .map((p) => ({ lat: p.lat, lng: p.lng, severity: p.severity }));
     // Criticals always ping, even when they aren't the newest events
-    const criticals = points
+    const criticals: RingDatum[] = points
       .filter((p) => p.severity === "critical")
       .slice(0, 8)
       .map((p) => ({ lat: p.lat, lng: p.lng, severity: p.severity }));
     const merged: RingDatum[] = [...newest, ...criticals];
     if (focus) {
-      merged.push({ lat: focus.lat, lng: focus.lng, severity: focus.severity ?? "critical", isFocus: true });
+      merged.push({
+        lat: focus.lat,
+        lng: focus.lng,
+        severity: focus.severity ?? "critical",
+        isFocus: true,
+      });
     }
     return merged;
   }, [points, focus]);
+
+  // Deep view: label the most severe events on screen once the user zooms in
+  const labels = useMemo(
+    () => (deep ? points.slice(0, 120) : []),
+    [deep, points],
+  );
 
   useEffect(() => {
     fetch("/countries.geojson")
@@ -112,15 +161,10 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
   const flyTo = (target: GlobeFocus, altitude = FOCUS_ALTITUDE) => {
     const globe = globeRef.current;
     if (!globe) return;
-    const controls = globe.controls();
-    controls.autoRotate = false;
     globe.pointOfView({ lat: target.lat, lng: target.lng, altitude }, 1_400);
     setFocus({ ...target, at: Date.now() });
-    if (resumeTimer.current) clearTimeout(resumeTimer.current);
-    resumeTimer.current = setTimeout(() => {
-      setFocus(null);
-      controls.autoRotate = document.visibilityState === "visible";
-    }, FOCUS_HOLD_MS);
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => setFocus(null), FOCUS_HOLD_MS);
   };
 
   useEffect(() => onGlobeFocus((f) => flyTo(f)), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -155,17 +199,13 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
     if (process.env.NODE_ENV !== "production") {
       (window as unknown as { __cwGlobe?: GlobeMethods }).__cwGlobe = globeRef.current;
     }
+    // The user drives the globe — no auto-rotation
     const controls = globeRef.current?.controls();
-    if (!controls) return;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.4;
-
-    const onVisibility = () => {
-      controls.autoRotate = document.visibilityState === "visible" && !focus;
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [size.width]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (controls) {
+      controls.autoRotate = false;
+      controls.zoomSpeed = 1.4;
+    }
+  }, [size.width]);
 
   return (
     <div ref={containerRef} className="h-full w-full">
@@ -177,22 +217,28 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
           backgroundColor="rgba(0,0,0,0)"
           rendererConfig={{ preserveDrawingBuffer: true }}
           onGlobeReady={flyIn}
+          onZoom={(pov: { altitude: number }) => setDeep(pov.altitude < DEEP_ALTITUDE)}
           globeImageUrl="/earth-night.jpg"
           showAtmosphere
           atmosphereColor="#22d3ee"
           atmosphereAltitude={0.18}
           polygonsData={countries}
           polygonAltitude={0.005}
-          polygonCapColor={(d: object) =>
-            d === hoverCountry ? "rgba(34,211,238,0.14)" : "rgba(34,211,238,0.025)"
-          }
+          polygonCapColor={(d: object) => {
+            if (view === "heat") {
+              return heatColor(counts[countryIso(d as CountryFeature)] ?? 0, maxCount);
+            }
+            return d === hoverCountry ? "rgba(34,211,238,0.14)" : "rgba(34,211,238,0.025)";
+          }}
           polygonSideColor={() => "rgba(0,0,0,0)"}
           polygonStrokeColor={(d: object) =>
             d === hoverCountry ? "rgba(34,211,238,0.9)" : "rgba(34,211,238,0.28)"
           }
           polygonLabel={(d: object) => {
-            const p = (d as CountryFeature).properties;
-            return `${p.ADMIN} (${p.ISO_A2})`;
+            const c = d as CountryFeature;
+            const iso = countryIso(c);
+            const n = counts[iso] ?? 0;
+            return `${c.properties.ADMIN} (${iso}) — ${n} event${n === 1 ? "" : "s"} in ${win}`;
           }}
           onPolygonHover={(d: object | null) => setHoverCountry(d)}
           polygonsTransitionDuration={0}
@@ -205,8 +251,31 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
           pointRadius={(p: object) => 0.18 + (p as GlobePoint).size * 0.22}
           onPointClick={(p: object) => {
             const pt = p as GlobePoint;
-            flyTo({ lat: pt.lat, lng: pt.lng, label: pt.label, severity: pt.severity }, 0.5);
+            flyTo({ lat: pt.lat, lng: pt.lng, label: pt.title, severity: pt.severity }, 0.5);
+            selectGlobeEvent({
+              title: pt.title,
+              severity: pt.severity,
+              type: pt.type,
+              source: pt.source,
+              ip: pt.ip,
+              country: pt.country,
+              city: pt.city,
+              occurredAt: pt.occurredAt,
+              metadata: pt.metadata,
+            });
           }}
+          labelsData={labels}
+          labelLat="lat"
+          labelLng="lng"
+          labelText={(l: object) => {
+            const p = l as GlobePoint;
+            return p.ip ?? p.city ?? p.country ?? "";
+          }}
+          labelSize={0.28}
+          labelDotRadius={0.12}
+          labelColor={(l: object) => SEVERITY_COLOR[(l as GlobePoint).severity] ?? "#38bdf8"}
+          labelResolution={2}
+          labelAltitude={0.015}
           arcsData={arcs}
           arcStartLat="startLat"
           arcStartLng="startLng"

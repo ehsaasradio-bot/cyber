@@ -17,6 +17,12 @@ const Globe = dynamic(() => import("./Globe"), {
   ),
 });
 
-export default function GlobePanel({ window }: { window: "24h" | "7d" }) {
-  return <Globe window={window} />;
+export default function GlobePanel({
+  window,
+  view,
+}: {
+  window: "24h" | "7d";
+  view: import("./ViewSelect").GlobeView;
+}) {
+  return <Globe window={window} view={view} />;
 }

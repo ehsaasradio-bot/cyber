@@ -12,11 +12,20 @@ export function windowStart(window: Window): Date {
 const SEVERITY_ORDER = sql`case ${threatEvents.severity}
   when 'critical' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`;
 
-export async function geoEvents(window: Window, limit = 400) {
+export async function geoEvents(window: Window, limit = 400, types?: string[]) {
+  const conditions = [
+    sql`${threatEvents.lat} IS NOT NULL AND ${threatEvents.occurredAt} >= ${windowStart(window).toISOString()}::timestamptz`,
+  ];
+  if (types?.length) {
+    conditions.push(
+      sql`${threatEvents.type} IN (${sql.join(types.map((t) => sql`${t}`), sql`, `)})`,
+    );
+  }
   return db
     .select({
       dedupKey: threatEvents.dedupKey,
       type: threatEvents.type,
+      source: threatEvents.source,
       title: threatEvents.title,
       severity: threatEvents.severity,
       occurredAt: threatEvents.occurredAt,
@@ -24,13 +33,25 @@ export async function geoEvents(window: Window, limit = 400) {
       lon: threatEvents.lon,
       country: threatEvents.country,
       city: threatEvents.city,
+      ip: threatEvents.ip,
+      metadata: threatEvents.metadata,
     })
     .from(threatEvents)
-    .where(
-      sql`${threatEvents.lat} IS NOT NULL AND ${threatEvents.occurredAt} >= ${windowStart(window).toISOString()}::timestamptz`,
-    )
+    .where(sql.join(conditions, sql` AND `))
     .orderBy(SEVERITY_ORDER, desc(threatEvents.occurredAt))
     .limit(limit);
+}
+
+/** Events per country in the window — drives the resilience choropleth. */
+export async function countryCounts(window: Window): Promise<Record<string, number>> {
+  const rows = await db.execute<{ country: string; n: number }>(sql`
+    SELECT country, count(*)::int AS n
+    FROM threat_events
+    WHERE country IS NOT NULL
+      AND occurred_at >= ${windowStart(window).toISOString()}::timestamptz
+    GROUP BY country
+  `);
+  return Object.fromEntries(rows.map((r) => [r.country.trim(), r.n]));
 }
 
 export async function recentEvents(since: Date | null, limit = 50, severity?: string) {
@@ -49,6 +70,7 @@ export async function recentEvents(since: Date | null, limit = 50, severity?: st
       country: threatEvents.country,
       lat: threatEvents.lat,
       lon: threatEvents.lon,
+      ip: threatEvents.ip,
       metadata: threatEvents.metadata,
     })
     .from(threatEvents)
