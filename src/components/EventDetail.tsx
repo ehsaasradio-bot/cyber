@@ -37,6 +37,9 @@ export default function EventDetail() {
 
   const meta = (sel.metadata ?? {}) as Record<string, unknown>;
   const metaRows: [string, string][] = [];
+  if (meta.group) metaRows.push(["Ransomware group", String(meta.group)]);
+  if (meta.sector) metaRows.push(["Sector", String(meta.sector)]);
+  if (meta.domain) metaRows.push(["Domain", String(meta.domain)]);
   if (meta.malware) metaRows.push(["Malware", String(meta.malware)]);
   if (meta.port) metaRows.push(["C2 port", String(meta.port)]);
   if (meta.asName || meta.asn)
@@ -118,9 +121,7 @@ export default function EventDetail() {
                 {intel.vulns.slice(0, 8).map((v) => (
                   <a
                     key={v}
-                    href={`https://nvd.nist.gov/vuln/detail/${v}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/cve/${v}`}
                     className="rounded border border-sev-critical/40 bg-sev-critical/10 px-1.5 py-px font-mono text-[10px] text-sev-critical transition-colors hover:bg-sev-critical/25"
                   >
                     {v}
@@ -142,19 +143,38 @@ export default function EventDetail() {
         )}
       </div>
 
-      {sel.ip && (
-        <footer className="flex gap-1.5 border-t border-white/[0.06] px-4 py-2.5">
-          {PIVOTS.map(([name, url]) => (
+      {(sel.ip || typeof meta.page === "string" || sel.country) && (
+        <footer className="flex flex-wrap gap-1.5 border-t border-white/[0.06] px-4 py-2.5">
+          {sel.ip &&
+            PIVOTS.map(([name, url]) => (
+              <a
+                key={name}
+                href={url(sel.ip!)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-400 transition-colors hover:border-neon/40 hover:text-neon"
+              >
+                {name} ↗
+              </a>
+            ))}
+          {typeof meta.page === "string" && meta.page.startsWith("https://www.ransomware.live") && (
             <a
-              key={name}
-              href={url(sel.ip!)}
+              href={meta.page}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-400 transition-colors hover:border-neon/40 hover:text-neon"
+              className="rounded-md border border-sev-critical/30 bg-sev-critical/[0.08] px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-sev-critical transition-colors hover:bg-sev-critical/20"
             >
-              {name} ↗
+              RansomLive ↗
             </a>
-          ))}
+          )}
+          {sel.country && (
+            <a
+              href={`/country/${sel.country}`}
+              className="ml-auto rounded-md border border-neon/30 bg-neon/[0.08] px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-neon transition-colors hover:bg-neon/20"
+            >
+              {sel.country} profile →
+            </a>
+          )}
         </footer>
       )}
     </div>

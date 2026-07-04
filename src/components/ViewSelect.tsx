@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type GlobeView = "all" | "c2" | "attack" | "malware" | "heat";
+export type GlobeView = "all" | "ransomware" | "c2" | "attack" | "malware" | "heat";
 
 const VIEWS: { key: GlobeView; label: string; hint: string }[] = [
   { key: "all", label: "All threats", hint: "Every geolocated event + attack arcs" },
+  { key: "ransomware", label: "Ransomware", hint: "Named victims (Ransomware.live)" },
   { key: "c2", label: "Botnet C2", hint: "Command & control servers (Feodo)" },
   { key: "attack", label: "Attack sources", hint: "Mass scanners & attackers (DShield)" },
   { key: "malware", label: "Malware hosts", hint: "Malware distribution URLs (URLhaus)" },

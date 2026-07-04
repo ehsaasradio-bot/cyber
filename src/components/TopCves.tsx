@@ -39,10 +39,8 @@ export default function TopCves() {
         return (
           <li
             key={c.cveId}
-            onClick={() =>
-              window.open(`https://nvd.nist.gov/vuln/detail/${c.cveId}`, "_blank", "noopener")
-            }
-            title="Open in NVD"
+            onClick={() => (window.location.href = `/cve/${c.cveId}`)}
+            title="Open CVE intel"
             className="group cursor-pointer px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
           >
             <div className="flex items-center gap-2">

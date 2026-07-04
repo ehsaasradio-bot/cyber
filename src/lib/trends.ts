@@ -242,3 +242,51 @@ export async function severityDaily(): Promise<SeverityDay[]> {
   }
   return [...byDay.values()];
 }
+
+export interface RansomwareTrend {
+  weeks: { week: string; victims: number }[];
+  groups: { group: string; victims: number }[];
+  totalVictims: number;
+}
+
+/** Weekly ransomware victim counts (12 ISO weeks) + most active groups, from Ransomware.live events. */
+export async function ransomwareTrend(): Promise<RansomwareTrend> {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 7 * 12));
+  const startIso = start.toISOString();
+
+  const weekRows = await db.execute<{ week: string; n: number }>(sql`
+    SELECT to_char(date_trunc('week', occurred_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS week,
+           count(*)::int AS n
+    FROM threat_events
+    WHERE type = 'ransomware_victim' AND occurred_at >= ${startIso}::timestamptz
+    GROUP BY 1 ORDER BY 1
+  `);
+  const groupRows = await db.execute<{ grp: string; n: number }>(sql`
+    SELECT metadata->>'group' AS grp, count(*)::int AS n
+    FROM threat_events
+    WHERE type = 'ransomware_victim' AND occurred_at >= ${startIso}::timestamptz
+      AND metadata->>'group' IS NOT NULL
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+
+  // Zero-fill the 12 ISO weeks ending this week
+  const byWeek = new Map(weekRows.map((r) => [r.week, r.n]));
+  const weeks: { week: string; victims: number }[] = [];
+  const monday = new Date(now);
+  const dow = (monday.getUTCDay() + 6) % 7; // Monday = 0
+  monday.setUTCDate(monday.getUTCDate() - dow);
+  monday.setUTCHours(0, 0, 0, 0);
+  for (let i = 11; i >= 0; i--) {
+    const w = new Date(monday);
+    w.setUTCDate(w.getUTCDate() - i * 7);
+    const key = w.toISOString().slice(0, 10);
+    weeks.push({ week: key, victims: byWeek.get(key) ?? 0 });
+  }
+
+  return {
+    weeks,
+    groups: groupRows.map((r) => ({ group: r.grp, victims: r.n })),
+    totalVictims: weekRows.reduce((s, r) => s + r.n, 0),
+  };
+}

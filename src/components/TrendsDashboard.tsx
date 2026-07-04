@@ -122,7 +122,7 @@ function RiskMatrixPanel() {
         xLabel="EPSS →"
         yLabel="CVSS →"
         onPointClick={(id) =>
-          window.open(`https://nvd.nist.gov/vuln/detail/${id}`, "_blank", "noopener,noreferrer")
+          (window.location.href = `/cve/${id}`)
         }
       />
       <Caption>
@@ -336,6 +336,53 @@ function SeverityPanel() {
   );
 }
 
+/* --------------------------- ransomware panel (h) ------------------------- */
+
+interface RansomwareTrendData {
+  weeks: { week: string; victims: number }[];
+  groups: { group: string; victims: number }[];
+  totalVictims: number;
+}
+
+function RansomwarePanel() {
+  const { data, isLoading } = useTrend<RansomwareTrendData>("ransomware");
+  if (isLoading && !data) return <Skeleton rows={7} />;
+  const weeks = data?.weeks ?? [];
+  if (weeks.length === 0 || weeks.every((w) => w.victims === 0)) return <AwaitingSignal />;
+  const top = (data?.groups ?? []).slice(0, 5);
+  return (
+    <div className="p-4">
+      <AreaTrend
+        data={weeks.map((w) => ({ label: w.week.slice(5), value: w.victims }))}
+        color="#f43f5e"
+        height={150}
+      />
+      {top.length > 0 && (
+        <div className="mt-3 border-t border-white/[0.06] pt-2.5">
+          <p className="mb-1.5 font-mono text-[9px] uppercase tracking-widest text-slate-500">
+            Most active groups
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {top.map((g) => (
+              <span
+                key={g.group}
+                className="rounded border border-sev-critical/30 bg-sev-critical/[0.08] px-2 py-0.5 font-mono text-[10px] text-slate-300"
+              >
+                {g.group} <span className="text-sev-critical">{g.victims}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <Caption>
+        <span>
+          {data?.totalVictims.toLocaleString()} named victims · 12 weeks · Ransomware.live
+        </span>
+      </Caption>
+    </div>
+  );
+}
+
 /* ---------------------------------- page --------------------------------- */
 
 export default function TrendsDashboard() {
@@ -363,8 +410,15 @@ export default function TrendsDashboard() {
         </GlassPanel>
 
         <GlassPanel
+          title="Ransomware Victims · 12 Weeks"
+          className="animate-panel-in [animation-delay:100ms]"
+        >
+          <RansomwarePanel />
+        </GlassPanel>
+
+        <GlassPanel
           title="Risk Matrix · Exploitability × Impact"
-          className="animate-panel-in lg:col-span-2 [animation-delay:100ms]"
+          className="animate-panel-in lg:col-span-2 [animation-delay:150ms]"
         >
           <RiskMatrixPanel />
         </GlassPanel>

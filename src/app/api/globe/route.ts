@@ -4,6 +4,7 @@ import { countryCounts, geoEvents, type Window } from "@/lib/queries";
 /** Globe view modes → event-type filters (undefined = everything). */
 const VIEW_TYPES: Record<string, string[] | undefined> = {
   all: undefined,
+  ransomware: ["ransomware_victim"],
   c2: ["c2_server"],
   attack: ["attack_source"],
   malware: ["malware_url"],

@@ -33,7 +33,7 @@ function activate(e: FeedEvent) {
       metadata: e.metadata,
     });
   } else if (typeof e.metadata?.cveId === "string") {
-    window.open(`https://nvd.nist.gov/vuln/detail/${e.metadata.cveId}`, "_blank", "noopener");
+    window.location.href = `/cve/${e.metadata.cveId}`;
   }
 }
 
@@ -71,7 +71,7 @@ export default function ThreatFeed() {
             <button
               onClick={() => activate(e)}
               disabled={!hasGeo && !hasLink}
-              title={hasGeo ? "Locate on globe" : hasLink ? "Open in NVD" : undefined}
+              title={hasGeo ? "Locate on globe" : hasLink ? "Open CVE intel" : undefined}
               className={`group w-full animate-feed-in border-l-2 px-3 py-2.5 text-left ${BORDER[e.severity] ?? BORDER.low} transition-colors hover:bg-white/[0.04] disabled:cursor-default`}
             >
               <p className="text-[13px] leading-snug text-slate-200">

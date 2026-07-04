@@ -22,6 +22,7 @@ const TYPE_TAG: Record<string, string> = {
   cve_critical: "CRITICAL CVE",
   attack_source: "MASS ATTACK",
   malware_url: "MALWARE HOST",
+  ransomware_victim: "RANSOMWARE HIT",
 };
 
 /** Rotating spotlight on breach-grade activity: critical events from the last feed pull. */
@@ -48,7 +49,7 @@ export default function AlertTicker() {
     if (alert.lat != null && alert.lon != null) {
       focusGlobe({ lat: alert.lat, lng: alert.lon, label: alert.title, severity: "critical" });
     } else if (alert.metadata?.cveId) {
-      window.open(`https://nvd.nist.gov/vuln/detail/${alert.metadata.cveId}`, "_blank", "noopener");
+      window.location.href = `/cve/${alert.metadata.cveId}`;
     }
   };
 

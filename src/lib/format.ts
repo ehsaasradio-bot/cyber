@@ -20,4 +20,5 @@ export const SOURCE_LABEL: Record<string, string> = {
   feodo: "Feodo",
   dshield: "DShield",
   urlhaus: "URLhaus",
+  ransomware_live: "RansomLive",
 };

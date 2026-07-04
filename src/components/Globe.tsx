@@ -240,6 +240,10 @@ export default function Globe({
             const n = counts[iso] ?? 0;
             return `${c.properties.ADMIN} (${iso}) — ${n} event${n === 1 ? "" : "s"} in ${win}`;
           }}
+          onPolygonClick={(d: object) => {
+            const iso = countryIso(d as CountryFeature);
+            if (iso) window.location.href = `/country/${iso}`;
+          }}
           onPolygonHover={(d: object | null) => setHoverCountry(d)}
           polygonsTransitionDuration={0}
           pointsData={points}
