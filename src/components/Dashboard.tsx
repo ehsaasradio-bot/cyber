@@ -6,6 +6,7 @@ import GlobePanel from "./GlobePanel";
 import ThreatFeed from "./ThreatFeed";
 import TopCves from "./TopCves";
 import Timeline from "./Timeline";
+import StatChips from "./StatChips";
 
 type Win = "24h" | "7d";
 
@@ -70,6 +71,7 @@ function Header() {
       <span className="rounded-full border border-neon/30 bg-neon/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-neon">
         Live
       </span>
+      <StatChips />
     </header>
   );
 }

@@ -6,9 +6,22 @@ import { nvdSource } from "./sources/nvd";
 import { epssSource } from "./sources/epss";
 import { feodoSource } from "./sources/feodo";
 import { dshieldSource } from "./sources/dshield";
+import { urlhausSource } from "./sources/urlhaus";
 
 /** Registration order = execution order for "all" (CVE anchors before enrichment, geo last). */
-const SOURCES: FeedSource[] = [kevSource, nvdSource, epssSource, feodoSource, dshieldSource];
+const SOURCES: FeedSource[] = [
+  kevSource,
+  nvdSource,
+  epssSource,
+  feodoSource,
+  dshieldSource,
+  urlhausSource,
+];
+
+/** Sources cheap enough to refresh every 15 min (no NVD/EPSS crawl). */
+export const FAST_SOURCES = ["cisa_kev", "feodo", "dshield", "urlhaus"];
+/** Rate-limited enrichment sources — hourly is plenty. */
+export const SLOW_SOURCES = ["nvd", "epss"];
 
 export function availableSources(): string[] {
   return SOURCES.map((s) => s.name);
@@ -16,8 +29,11 @@ export function availableSources(): string[] {
 
 export function resolveSources(names: string[]): FeedSource[] {
   if (names.includes("all")) return SOURCES;
+  const expanded = names.flatMap((n) =>
+    n === "fast" ? FAST_SOURCES : n === "slow" ? SLOW_SOURCES : [n],
+  );
   const byName = new Map(SOURCES.map((s) => [s.name, s]));
-  return names.map((n) => {
+  return expanded.map((n) => {
     const s = byName.get(n);
     if (!s) throw new Error(`Unknown source "${n}". Available: all, ${availableSources().join(", ")}`);
     return s;
