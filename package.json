@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "ingest": "tsx --env-file=.env.local scripts/ingest.ts"
   },
   "dependencies": {
     "date-fns": "^4.4.0",
