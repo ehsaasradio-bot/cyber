@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import SeverityBadge from "./SeverityBadge";
 import { fetcher, SOURCE_LABEL, timeAgo } from "@/lib/format";
+import { focusGlobe } from "@/lib/globeBus";
 
 interface FeedEvent {
   id: number;
@@ -12,6 +13,17 @@ interface FeedEvent {
   severity: string;
   occurredAt: string;
   country: string | null;
+  lat: number | null;
+  lon: number | null;
+  metadata: { cveId?: string } | null;
+}
+
+function activate(e: FeedEvent) {
+  if (e.lat != null && e.lon != null) {
+    focusGlobe({ lat: e.lat, lng: e.lon, label: e.title, severity: e.severity });
+  } else if (e.metadata?.cveId) {
+    window.open(`https://nvd.nist.gov/vuln/detail/${e.metadata.cveId}`, "_blank", "noopener");
+  }
 }
 
 const BORDER: Record<string, string> = {
@@ -40,22 +52,42 @@ export default function ThreatFeed() {
 
   return (
     <ul className="divide-y divide-white/[0.04]">
-      {data.events.map((e) => (
-        <li
-          key={e.id}
-          className={`animate-feed-in border-l-2 px-3 py-2.5 ${BORDER[e.severity] ?? BORDER.low} hover:bg-white/[0.03]`}
-        >
-          <p className="text-[13px] leading-snug text-slate-200">{e.title}</p>
-          <div className="mt-1.5 flex items-center gap-2 font-mono text-[10px] text-slate-500">
-            <SeverityBadge severity={e.severity} />
-            <span className="uppercase tracking-wider">
-              {SOURCE_LABEL[e.source] ?? e.source}
-            </span>
-            {e.country && <span>{e.country}</span>}
-            <span className="ml-auto">{timeAgo(e.occurredAt)}</span>
-          </div>
-        </li>
-      ))}
+      {data.events.map((e) => {
+        const hasGeo = e.lat != null && e.lon != null;
+        const hasLink = !hasGeo && !!e.metadata?.cveId;
+        return (
+          <li key={e.id}>
+            <button
+              onClick={() => activate(e)}
+              disabled={!hasGeo && !hasLink}
+              title={hasGeo ? "Locate on globe" : hasLink ? "Open in NVD" : undefined}
+              className={`group w-full animate-feed-in border-l-2 px-3 py-2.5 text-left ${BORDER[e.severity] ?? BORDER.low} transition-colors hover:bg-white/[0.04] disabled:cursor-default`}
+            >
+              <p className="text-[13px] leading-snug text-slate-200">
+                {e.title}
+                {hasGeo && (
+                  <span className="ml-1.5 inline-block text-neon opacity-0 transition-opacity group-hover:opacity-100">
+                    ⌖
+                  </span>
+                )}
+                {hasLink && (
+                  <span className="ml-1.5 inline-block text-neon opacity-0 transition-opacity group-hover:opacity-100">
+                    ↗
+                  </span>
+                )}
+              </p>
+              <div className="mt-1.5 flex items-center gap-2 font-mono text-[10px] text-slate-500">
+                <SeverityBadge severity={e.severity} />
+                <span className="uppercase tracking-wider">
+                  {SOURCE_LABEL[e.source] ?? e.source}
+                </span>
+                {e.country && <span>{e.country}</span>}
+                <span className="ml-auto">{timeAgo(e.occurredAt)}</span>
+              </div>
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

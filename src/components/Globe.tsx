@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import GlobeGL, { type GlobeMethods } from "react-globe.gl";
 import useSWR from "swr";
+import { onGlobeFocus, type GlobeFocus } from "@/lib/globeBus";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -43,10 +44,28 @@ interface GlobePayload {
   generatedAt: string;
 }
 
+interface RingDatum {
+  lat: number;
+  lng: number;
+  severity: string;
+  isFocus?: boolean;
+}
+
+interface CountryFeature {
+  properties: { ADMIN: string; ISO_A2: string };
+}
+
+const FOCUS_ALTITUDE = 0.7;
+const FOCUS_HOLD_MS = 9_000;
+
 export default function Globe({ window: win }: { window: "24h" | "7d" }) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [countries, setCountries] = useState<CountryFeature[]>([]);
+  const [hoverCountry, setHoverCountry] = useState<object | null>(null);
+  const [focus, setFocus] = useState<(GlobeFocus & { at: number }) | null>(null);
 
   const { data } = useSWR<GlobePayload>(`/api/globe?window=${win}`, fetcher, {
     refreshInterval: 60_000,
@@ -57,26 +76,29 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
   const generatedAt = data?.generatedAt;
   const points = useMemo(() => data?.points ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const arcs = useMemo(() => data?.arcs ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
-  const rings = useMemo(
-    () =>
-      [...points]
-        .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-        .slice(0, 10),
-    [points],
-  );
+
+  const rings = useMemo<RingDatum[]>(() => {
+    const newest: RingDatum[] = [...points]
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+      .slice(0, 10)
+      .map((p) => ({ lat: p.lat, lng: p.lng, severity: p.severity }));
+    // Criticals always ping, even when they aren't the newest events
+    const criticals = points
+      .filter((p) => p.severity === "critical")
+      .slice(0, 8)
+      .map((p) => ({ lat: p.lat, lng: p.lng, severity: p.severity }));
+    const merged: RingDatum[] = [...newest, ...criticals];
+    if (focus) {
+      merged.push({ lat: focus.lat, lng: focus.lng, severity: focus.severity ?? "critical", isFocus: true });
+    }
+    return merged;
+  }, [points, focus]);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    // Measure immediately — ResizeObserver callbacks don't fire in hidden tabs
-    const rect = el.getBoundingClientRect();
-    setSize({ width: rect.width, height: rect.height });
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      if (width > 0) setSize({ width, height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    fetch("/countries.geojson")
+      .then((r) => r.json())
+      .then((geo) => setCountries(geo.features ?? []))
+      .catch(() => {}); // borders are decorative — the globe works without them
   }, []);
 
   // Cinematic entrance: start far out, ease down to operating altitude
@@ -86,6 +108,48 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
     globe.pointOfView({ lat: 25, lng: 5, altitude: 4.5 }, 0);
     globe.pointOfView({ lat: 22, lng: 12, altitude: 2.3 }, 2600);
   };
+
+  const flyTo = (target: GlobeFocus, altitude = FOCUS_ALTITUDE) => {
+    const globe = globeRef.current;
+    if (!globe) return;
+    const controls = globe.controls();
+    controls.autoRotate = false;
+    globe.pointOfView({ lat: target.lat, lng: target.lng, altitude }, 1_400);
+    setFocus({ ...target, at: Date.now() });
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    resumeTimer.current = setTimeout(() => {
+      setFocus(null);
+      controls.autoRotate = document.visibilityState === "visible";
+    }, FOCUS_HOLD_MS);
+  };
+
+  useEffect(() => onGlobeFocus((f) => flyTo(f)), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // Measure immediately, then retry until layout exists — ResizeObserver
+    // callbacks and rAF don't fire in hidden/background tabs
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0) {
+        setSize({ width: rect.width, height: rect.height });
+      } else {
+        retry = setTimeout(measure, 1_000);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0) setSize({ width, height });
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      if (retry) clearTimeout(retry);
+    };
+  }, []);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
@@ -97,11 +161,11 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
     controls.autoRotateSpeed = 0.4;
 
     const onVisibility = () => {
-      controls.autoRotate = document.visibilityState === "visible";
+      controls.autoRotate = document.visibilityState === "visible" && !focus;
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [size.width]);
+  }, [size.width]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={containerRef} className="h-full w-full">
@@ -117,13 +181,32 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
           showAtmosphere
           atmosphereColor="#22d3ee"
           atmosphereAltitude={0.18}
+          polygonsData={countries}
+          polygonAltitude={0.005}
+          polygonCapColor={(d: object) =>
+            d === hoverCountry ? "rgba(34,211,238,0.14)" : "rgba(34,211,238,0.025)"
+          }
+          polygonSideColor={() => "rgba(0,0,0,0)"}
+          polygonStrokeColor={(d: object) =>
+            d === hoverCountry ? "rgba(34,211,238,0.9)" : "rgba(34,211,238,0.28)"
+          }
+          polygonLabel={(d: object) => {
+            const p = (d as CountryFeature).properties;
+            return `${p.ADMIN} (${p.ISO_A2})`;
+          }}
+          onPolygonHover={(d: object | null) => setHoverCountry(d)}
+          polygonsTransitionDuration={0}
           pointsData={points}
           pointLat="lat"
           pointLng="lng"
           pointLabel="label"
           pointColor={(p: object) => SEVERITY_COLOR[(p as GlobePoint).severity] ?? "#38bdf8"}
-          pointAltitude={(p: object) => 0.01 + (p as GlobePoint).size * 0.05}
+          pointAltitude={(p: object) => 0.012 + (p as GlobePoint).size * 0.05}
           pointRadius={(p: object) => 0.18 + (p as GlobePoint).size * 0.22}
+          onPointClick={(p: object) => {
+            const pt = p as GlobePoint;
+            flyTo({ lat: pt.lat, lng: pt.lng, label: pt.label, severity: pt.severity }, 0.5);
+          }}
           arcsData={arcs}
           arcStartLat="startLat"
           arcStartLng="startLng"
@@ -138,17 +221,25 @@ export default function Globe({ window: win }: { window: "24h" | "7d" }) {
           ringsData={rings}
           ringLat="lat"
           ringLng="lng"
-          ringColor={(r: object) =>
-            (t: number) => {
-              const base = SEVERITY_COLOR[(r as GlobePoint).severity] ?? "#38bdf8";
-              const alpha = Math.round((1 - t) * 160)
+          ringColor={(r: object) => {
+            const ring = r as RingDatum;
+            const base = SEVERITY_COLOR[ring.severity] ?? "#38bdf8";
+            return (t: number) => {
+              const alpha = Math.round((1 - t) * (ring.isFocus ? 220 : 160))
                 .toString(16)
                 .padStart(2, "0");
               return `${base}${alpha}`;
-            }}
-          ringMaxRadius={4}
-          ringPropagationSpeed={1.5}
-          ringRepeatPeriod={1800}
+            };
+          }}
+          ringMaxRadius={(r: object) => {
+            const ring = r as RingDatum;
+            return ring.isFocus ? 9 : ring.severity === "critical" ? 6 : 3.5;
+          }}
+          ringPropagationSpeed={(r: object) => ((r as RingDatum).isFocus ? 3 : 1.5)}
+          ringRepeatPeriod={(r: object) => {
+            const ring = r as RingDatum;
+            return ring.isFocus ? 900 : ring.severity === "critical" ? 1200 : 1800;
+          }}
         />
       )}
     </div>

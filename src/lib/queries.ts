@@ -33,7 +33,10 @@ export async function geoEvents(window: Window, limit = 400) {
     .limit(limit);
 }
 
-export async function recentEvents(since: Date | null, limit = 50) {
+export async function recentEvents(since: Date | null, limit = 50, severity?: string) {
+  const conditions = [];
+  if (since) conditions.push(gt(threatEvents.ingestedAt, since));
+  if (severity) conditions.push(sql`${threatEvents.severity} = ${severity}`);
   const base = db
     .select({
       id: threatEvents.id,
@@ -44,12 +47,14 @@ export async function recentEvents(since: Date | null, limit = 50) {
       occurredAt: threatEvents.occurredAt,
       ingestedAt: threatEvents.ingestedAt,
       country: threatEvents.country,
+      lat: threatEvents.lat,
+      lon: threatEvents.lon,
       metadata: threatEvents.metadata,
     })
     .from(threatEvents)
-    .orderBy(desc(threatEvents.ingestedAt), desc(threatEvents.id))
+    .orderBy(desc(threatEvents.occurredAt), desc(threatEvents.id))
     .limit(limit);
-  return since ? base.where(gt(threatEvents.ingestedAt, since)) : base;
+  return conditions.length ? base.where(sql.join(conditions, sql` AND `)) : base;
 }
 
 export async function topCves(limit = 15) {

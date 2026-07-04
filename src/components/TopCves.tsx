@@ -37,13 +37,23 @@ export default function TopCves() {
       {data.cves.map((c, rank) => {
         const score = Number(c.priorityScore);
         return (
-          <li key={c.cveId} className="px-3 py-2.5 hover:bg-white/[0.03]">
+          <li
+            key={c.cveId}
+            onClick={() =>
+              window.open(`https://nvd.nist.gov/vuln/detail/${c.cveId}`, "_blank", "noopener")
+            }
+            title="Open in NVD"
+            className="group cursor-pointer px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
+          >
             <div className="flex items-center gap-2">
               <span className="w-5 shrink-0 font-mono text-[10px] text-slate-600">
                 {String(rank + 1).padStart(2, "0")}
               </span>
               <span className="font-mono text-[13px] font-medium text-neon">
                 {c.cveId}
+                <span className="ml-1 inline-block opacity-0 transition-opacity group-hover:opacity-100">
+                  ↗
+                </span>
               </span>
               <span className="ml-auto font-mono text-[13px] font-semibold text-slate-100">
                 {score.toFixed(1)}
