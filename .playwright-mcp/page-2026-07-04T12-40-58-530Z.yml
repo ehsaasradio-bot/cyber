@@ -1,0 +1,16 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link "CYBERWEATHER" [ref=e4] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e5]: Trend Analytics
+    - generic [ref=e6]:
+      - heading "KEV Additions · 24 Months" [level=2] [ref=e10]
+      - heading "Risk Matrix · Exploitability × Impact" [level=2] [ref=e22]
+      - heading "Exploit Probability Distribution" [level=2] [ref=e36]
+      - heading "Most-Exploited Vendors" [level=2] [ref=e48]
+      - heading "Botnet C2 · Malware Families" [level=2] [ref=e62]
+      - heading "Attack Origins · 7 Days" [level=2] [ref=e72]
+      - heading "Severity Mix · 14 Days" [level=2] [ref=e86]
+  - button "Open Next.js Dev Tools" [ref=e100] [cursor=pointer]:
+    - img [ref=e101]

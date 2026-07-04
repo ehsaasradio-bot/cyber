@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { focusGlobe, selectGlobeEvent } from "@/lib/globeBus";
 import GlassPanel from "./GlassPanel";
 import GlobePanel from "./GlobePanel";
 import ThreatFeed from "./ThreatFeed";
@@ -16,6 +18,41 @@ type Win = "24h" | "7d";
 export default function Dashboard() {
   const [win, setWin] = useState<Win>("24h");
   const [view, setView] = useState<GlobeView>("all");
+
+  // Deep link from /trends: /?country=NL flies the globe to that country's
+  // worst recent event once the globe has mounted.
+  useEffect(() => {
+    const country = new URLSearchParams(window.location.search).get("country");
+    if (!country || !/^[A-Za-z]{2}$/.test(country)) return;
+    setWin("7d");
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/globe?window=7d&view=all");
+      if (!res.ok) return;
+      const { points } = (await res.json()) as {
+        points: {
+          lat: number; lng: number; title: string; severity: string; type: string;
+          source: string; country: string | null; city: string | null;
+          ip: string | null; occurredAt: string; metadata: Record<string, unknown> | null;
+        }[];
+      };
+      const target = points.find((p) => p.country === country.toUpperCase());
+      if (!target || cancelled) return;
+      // Globe mounts async (dynamic import + entrance flight) — wait it out
+      await new Promise((r) => setTimeout(r, 2_800));
+      if (cancelled) return;
+      focusGlobe({ lat: target.lat, lng: target.lng, label: target.title, severity: target.severity });
+      selectGlobeEvent({
+        title: target.title, severity: target.severity, type: target.type,
+        source: target.source, ip: target.ip, country: target.country,
+        city: target.city, occurredAt: target.occurredAt, metadata: target.metadata,
+      });
+      window.history.replaceState(null, "", "/");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggle = (
     <div className="flex gap-1">
@@ -83,6 +120,12 @@ function Header({ viewSelect }: { viewSelect: React.ReactNode }) {
         Live
       </span>
       {viewSelect}
+      <Link
+        href="/trends"
+        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 backdrop-blur-xl transition-colors hover:border-neon/40 hover:text-neon"
+      >
+        Trends ↗
+      </Link>
       <div className="min-w-0 flex-1 px-4">
         <AlertTicker />
       </div>
