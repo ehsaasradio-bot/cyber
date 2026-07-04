@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { fetcher } from "@/lib/format";
+import { fetcher, slugify } from "@/lib/format";
 import GlassPanel from "./GlassPanel";
 import StatChips from "./StatChips";
 import AreaTrend from "./charts/AreaTrend";
@@ -364,12 +364,13 @@ function RansomwarePanel() {
           </p>
           <div className="flex flex-wrap gap-1.5">
             {top.map((g) => (
-              <span
+              <Link
                 key={g.group}
-                className="rounded border border-sev-critical/30 bg-sev-critical/[0.08] px-2 py-0.5 font-mono text-[10px] text-slate-300"
+                href={`/group/${slugify(g.group)}`}
+                className="rounded border border-sev-critical/30 bg-sev-critical/[0.08] px-2 py-0.5 font-mono text-[10px] text-slate-300 transition-colors hover:bg-sev-critical/[0.18]"
               >
                 {g.group} <span className="text-sev-critical">{g.victims}</span>
-              </span>
+              </Link>
             ))}
           </div>
         </div>
@@ -378,6 +379,55 @@ function RansomwarePanel() {
         <span>
           {data?.totalVictims.toLocaleString()} named victims · 12 weeks · Ransomware.live
         </span>
+      </Caption>
+    </div>
+  );
+}
+
+/* ----------------------------- sector panel (i) --------------------------- */
+
+interface SectorsData {
+  sectors: { name: string; slug: string; victims: number }[];
+}
+
+function SectorsPanel() {
+  const { data, isLoading } = useTrend<SectorsData>("sectors");
+  if (isLoading && !data) return <Skeleton rows={8} />;
+  const sectors = (data?.sectors ?? []).slice(0, 10);
+  if (sectors.length === 0) return <AwaitingSignal />;
+  const max = Math.max(1, ...sectors.map((s) => s.victims));
+  return (
+    <div className="flex flex-col gap-1 p-4">
+      {sectors.map((s, i) => (
+        <Link
+          key={s.slug}
+          href={`/sector/${s.slug}`}
+          className="group flex items-center gap-3 rounded px-1 py-1 transition-colors hover:bg-white/[0.05]"
+        >
+          <span
+            className={`w-44 shrink-0 truncate font-mono text-[11px] ${
+              i === 0 ? "font-semibold text-neon" : "text-slate-400"
+            }`}
+            title={s.name}
+          >
+            {s.name}
+          </span>
+          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-sev-critical/80 to-sev-high/80"
+              style={{ width: `${(s.victims / max) * 100}%` }}
+            />
+          </div>
+          <span className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-slate-300">
+            {s.victims}
+          </span>
+          <span className="shrink-0 font-mono text-[11px] text-neon opacity-0 transition-opacity group-hover:opacity-100">
+            →
+          </span>
+        </Link>
+      ))}
+      <Caption>
+        <span>Ransomware victims by sector · 90 days · click for sector intel</span>
       </Caption>
     </div>
   );
@@ -398,6 +448,12 @@ export default function TrendsDashboard() {
         <span className="rounded-full border border-pulse/30 bg-pulse/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-pulse">
           Trend Analytics
         </span>
+        <Link
+          href="/my"
+          className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition-colors hover:border-pulse/40 hover:text-pulse"
+        >
+          My Weather
+        </Link>
         <StatChips />
       </header>
 
@@ -456,6 +512,13 @@ export default function TrendsDashboard() {
           className="animate-panel-in [animation-delay:600ms]"
         >
           <SeverityPanel />
+        </GlassPanel>
+
+        <GlassPanel
+          title="Ransomware by Sector · 90 Days"
+          className="animate-panel-in [animation-delay:700ms]"
+        >
+          <SectorsPanel />
         </GlassPanel>
       </div>
     </div>

@@ -72,7 +72,7 @@ export default function AlertTicker() {
       >
         {alert.title}
       </span>
-      <span className="ml-1 shrink-0 font-mono text-[10px] text-slate-500">
+      <span className="ml-1 hidden shrink-0 font-mono text-[10px] text-slate-500 xl:inline">
         {timeAgo(alert.occurredAt)}
       </span>
     </button>

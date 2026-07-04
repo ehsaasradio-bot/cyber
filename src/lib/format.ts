@@ -14,6 +14,10 @@ export function timeAgo(iso: string): string {
 
 export const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
+export function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export const SOURCE_LABEL: Record<string, string> = {
   cisa_kev: "CISA KEV",
   nvd: "NVD",

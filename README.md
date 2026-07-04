@@ -1,6 +1,14 @@
 # CyberWeather
 
-Live visualization of global cyber risk — a dark command-center homepage with a rotating 3D globe of real threat activity (botnet C2 servers, mass-scanning sources), a live threat feed, priority-ranked CVEs, and an event timeline.
+Live visualization of global cyber risk — a dark command-center homepage with an interactive 3D globe of real threat activity (ransomware victims, botnet C2 servers, mass-scanning sources), a live threat feed, priority-ranked CVEs, and an event timeline.
+
+Beyond the command center:
+- **CyberWeather Index** — 0–100 risk pressure per region and sector with momentum-based 7-day outlook (`/api/index`, embeddable badge at `/api/index/badge.svg`), snapshotted daily for deltas
+- **Daily weather report** — executive briefing banner (uses the Claude API when `ANTHROPIC_API_KEY` is set, deterministic fallback otherwise)
+- **Trend analytics** at `/trends` (KEV, ransomware, risk matrix, sectors, vendors…)
+- **Intel pages**: `/cve/CVE-…`, `/country/US`, `/sector/healthcare`, `/group/qilin`
+- **My Weather** at `/my` — pick your vendors + sector for personalized exposure and patch-now lists (stored in localStorage)
+- **Attack replay** — ▶ Replay button on the homepage scrubs the last 30 days across the globe
 
 Built with Next.js (App Router) + TypeScript, react-globe.gl, Tailwind v4, Drizzle ORM, and Postgres. All data comes from free public feeds:
 

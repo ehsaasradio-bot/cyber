@@ -100,3 +100,131 @@ export async function getCountryDetail(iso2: string) {
 
   return { cc, name: countryName(cc), stats, byType: [...byType], byDay, events };
 }
+
+/* --------------------------- Sector & group detail ------------------------ */
+
+export { slugify } from "./format";
+import { slugify } from "./format";
+
+async function weeklyVictims(where: ReturnType<typeof sql>): Promise<{ week: string; victims: number }[]> {
+  const rows = await db.execute<{ week: string; n: number }>(sql`
+    SELECT to_char(date_trunc('week', occurred_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS week, count(*)::int AS n
+    FROM threat_events
+    WHERE type = 'ransomware_victim' AND occurred_at >= now() - interval '84 days' AND ${where}
+    GROUP BY 1 ORDER BY 1
+  `);
+  const byWeek = new Map(rows.map((r) => [r.week, r.n]));
+  const out: { week: string; victims: number }[] = [];
+  const monday = new Date();
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  monday.setUTCHours(0, 0, 0, 0);
+  for (let i = 11; i >= 0; i--) {
+    const w = new Date(monday);
+    w.setUTCDate(w.getUTCDate() - i * 7);
+    const key = w.toISOString().slice(0, 10);
+    out.push({ week: key, victims: byWeek.get(key) ?? 0 });
+  }
+  return out;
+}
+
+export async function listSectors() {
+  const rows = await db.execute<{ sector: string; n: number }>(sql`
+    SELECT metadata->>'sector' AS sector, count(*)::int AS n
+    FROM threat_events
+    WHERE type = 'ransomware_victim' AND occurred_at >= now() - interval '90 days'
+      AND metadata->>'sector' IS NOT NULL AND metadata->>'sector' != '' AND metadata->>'sector' != 'Not Found'
+    GROUP BY 1 ORDER BY 2 DESC
+  `);
+  return rows.map((r) => ({ name: r.sector, slug: slugify(r.sector), victims: r.n }));
+}
+
+export async function getSectorDetail(slug: string) {
+  const sectors = await listSectors();
+  const match = sectors.find((s) => s.slug === slug);
+  if (!match) return null;
+  const name = match.name;
+
+  const weekly = await weeklyVictims(sql`metadata->>'sector' = ${name}`);
+  const groups = await db.execute<{ grp: string; n: number }>(sql`
+    SELECT metadata->>'group' AS grp, count(*)::int AS n FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'sector' = ${name}
+      AND occurred_at >= now() - interval '90 days'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+  const countries = await db.execute<{ country: string; n: number }>(sql`
+    SELECT country, count(*)::int AS n FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'sector' = ${name}
+      AND country IS NOT NULL AND occurred_at >= now() - interval '90 days'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+  const victims = await db
+    .select({
+      id: threatEvents.id,
+      title: threatEvents.title,
+      occurredAt: threatEvents.occurredAt,
+      country: threatEvents.country,
+      metadata: threatEvents.metadata,
+    })
+    .from(threatEvents)
+    .where(sql`${threatEvents.type} = 'ransomware_victim' AND ${threatEvents.metadata}->>'sector' = ${name}`)
+    .orderBy(desc(threatEvents.occurredAt))
+    .limit(30);
+
+  return {
+    name,
+    slug,
+    totalVictims90d: match.victims,
+    victims14d: weekly.slice(-2).reduce((s, w) => s + w.victims, 0),
+    weekly,
+    groups: [...groups].map((g) => ({ name: g.grp, victims: g.n })),
+    countries: [...countries].map((c) => ({ country: c.country.trim(), victims: c.n })),
+    victims,
+  };
+}
+
+export async function getGroupDetail(slug: string) {
+  const rows = await db.execute<{ grp: string; n: number }>(sql`
+    SELECT metadata->>'group' AS grp, count(*)::int AS n
+    FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'group' IS NOT NULL
+    GROUP BY 1
+  `);
+  const match = rows.find((r) => slugify(r.grp) === slug);
+  if (!match) return null;
+  const name = match.grp;
+
+  const weekly = await weeklyVictims(sql`metadata->>'group' = ${name}`);
+  const sectors = await db.execute<{ sector: string; n: number }>(sql`
+    SELECT metadata->>'sector' AS sector, count(*)::int AS n FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'group' = ${name}
+      AND metadata->>'sector' IS NOT NULL AND metadata->>'sector' != '' AND metadata->>'sector' != 'Not Found'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+  const countries = await db.execute<{ country: string; n: number }>(sql`
+    SELECT country, count(*)::int AS n FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'group' = ${name} AND country IS NOT NULL
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+  const victims = await db
+    .select({
+      id: threatEvents.id,
+      title: threatEvents.title,
+      occurredAt: threatEvents.occurredAt,
+      country: threatEvents.country,
+      metadata: threatEvents.metadata,
+    })
+    .from(threatEvents)
+    .where(sql`${threatEvents.type} = 'ransomware_victim' AND ${threatEvents.metadata}->>'group' = ${name}`)
+    .orderBy(desc(threatEvents.occurredAt))
+    .limit(30);
+
+  return {
+    name,
+    slug,
+    totalVictims: match.n,
+    weekly,
+    sectors: [...sectors].map((s) => ({ name: s.sector, victims: s.n })),
+    countries: [...countries].map((c) => ({ country: c.country.trim(), victims: c.n })),
+    victims,
+  };
+}

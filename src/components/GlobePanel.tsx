@@ -17,12 +17,31 @@ const Globe = dynamic(() => import("./Globe"), {
   ),
 });
 
+interface OverridePoint {
+  id: string;
+  lat: number;
+  lng: number;
+  size: number;
+  severity: string;
+  type: string;
+  source: string;
+  title: string;
+  label: string;
+  occurredAt: string;
+  country: string | null;
+  city: string | null;
+  ip: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
 export default function GlobePanel({
   window,
   view,
+  overridePoints,
 }: {
   window: "24h" | "7d";
   view: import("./ViewSelect").GlobeView;
+  overridePoints?: OverridePoint[] | null;
 }) {
-  return <Globe window={window} view={view} />;
+  return <Globe window={window} view={view} overridePoints={overridePoints} />;
 }

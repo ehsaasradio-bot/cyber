@@ -17,9 +17,9 @@ export default function StatChips() {
   if (!data) return null;
 
   const chips: [string, number][] = [
-    ["Events 24h", data.events24h],
-    ["KEV entries", data.kevCount],
-    ["Tracked CVEs", data.trackedCves],
+    ["24h", data.events24h],
+    ["KEV", data.kevCount],
+    ["CVEs", data.trackedCves],
   ];
 
   return (

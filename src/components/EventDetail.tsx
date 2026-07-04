@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import SeverityBadge from "./SeverityBadge";
-import { fetcher, SOURCE_LABEL, timeAgo } from "@/lib/format";
+import { fetcher, slugify, SOURCE_LABEL, timeAgo } from "@/lib/format";
 import { onGlobeSelect, selectGlobeEvent, type GlobeSelection } from "@/lib/globeBus";
 
 interface IpIntel {
@@ -157,6 +157,14 @@ export default function EventDetail() {
                 {name} ↗
               </a>
             ))}
+          {typeof meta.group === "string" && (
+            <a
+              href={`/group/${slugify(meta.group)}`}
+              className="rounded-md border border-sev-critical/30 bg-sev-critical/[0.08] px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-sev-critical transition-colors hover:bg-sev-critical/20"
+            >
+              {meta.group} intel →
+            </a>
+          )}
           {typeof meta.page === "string" && meta.page.startsWith("https://www.ransomware.live") && (
             <a
               href={meta.page}

@@ -74,6 +74,18 @@ export const threatEvents = pgTable(
   ],
 );
 
+export const indexSnapshots = pgTable(
+  "index_snapshots",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    snappedAt: date("snapped_at").notNull(),
+    scope: text("scope").notNull(), // global | region | sector
+    key: text("key").notNull(), // 'global', region code, or sector name
+    score: numeric("score", { precision: 5, scale: 2 }).notNull(),
+  },
+  (t) => [uniqueIndex("index_snapshots_day_idx").on(t.snappedAt, t.scope, t.key)],
+);
+
 export const ingestionRuns = pgTable("ingestion_runs", {
   id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
   source: text("source").notNull(),

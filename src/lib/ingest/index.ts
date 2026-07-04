@@ -49,5 +49,7 @@ export async function ingest(names: string[]): Promise<RunSummary[]> {
     summaries.push(await runSource(source));
   }
   await recomputePriorityScores();
+  const { snapshotIndex } = await import("../indexEngine");
+  await snapshotIndex().catch(() => {}); // index snapshot is best-effort
   return summaries;
 }

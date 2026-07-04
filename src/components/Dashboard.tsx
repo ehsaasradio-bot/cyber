@@ -12,12 +12,16 @@ import StatChips from "./StatChips";
 import AlertTicker from "./AlertTicker";
 import ViewSelect, { type GlobeView } from "./ViewSelect";
 import EventDetail from "./EventDetail";
+import ForecastStrip from "./ForecastStrip";
+import BriefingBanner from "./BriefingBanner";
+import { ReplayHud, useReplay } from "./ReplayControl";
 
 type Win = "24h" | "7d";
 
 export default function Dashboard() {
   const [win, setWin] = useState<Win>("24h");
   const [view, setView] = useState<GlobeView>("all");
+  const replay = useReplay();
 
   // Deep link from /trends: /?country=NL flies the globe to that country's
   // worst recent event once the globe has mounted.
@@ -73,13 +77,29 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden max-lg:h-auto max-lg:overflow-visible">
+    <div className="relative h-screen w-full overflow-hidden max-lg:h-auto max-lg:overflow-visible">
       <div className="absolute inset-0 z-0 max-lg:relative max-lg:h-[50vh]">
-        <GlobePanel window={win} view={view} />
+        <GlobePanel window={win} view={view} overridePoints={replay.points} />
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col p-4 max-lg:relative max-lg:inset-auto">
-        <Header viewSelect={<ViewSelect view={view} onChange={setView} />} />
+        <Header
+          viewSelect={<ViewSelect view={view} onChange={setView} />}
+          replayButton={
+            !replay.active ? (
+              <button
+                onClick={replay.start}
+                className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 backdrop-blur-xl transition-colors hover:border-pulse/40 hover:text-pulse"
+                title="Replay the last 30 days on the globe"
+              >
+                ▶ Replay
+              </button>
+            ) : null
+          }
+        />
+        <ForecastStrip />
+        <BriefingBanner />
+        <ReplayHud replay={replay} />
         <EventDetail />
 
         <div className="flex min-h-0 flex-1 items-stretch justify-between gap-4 max-lg:flex-col">
@@ -110,9 +130,15 @@ export default function Dashboard() {
   );
 }
 
-function Header({ viewSelect }: { viewSelect: React.ReactNode }) {
+function Header({
+  viewSelect,
+  replayButton,
+}: {
+  viewSelect: React.ReactNode;
+  replayButton?: React.ReactNode;
+}) {
   return (
-    <header className="pointer-events-auto flex animate-panel-in items-center gap-4 px-2 pb-3">
+    <header className="pointer-events-auto flex animate-panel-in flex-wrap items-center gap-x-4 gap-y-2 px-2 pb-3">
       <h1 className="font-mono text-lg font-semibold tracking-[0.35em] text-white">
         CYBER<span className="text-neon">WEATHER</span>
       </h1>
@@ -126,7 +152,15 @@ function Header({ viewSelect }: { viewSelect: React.ReactNode }) {
       >
         Trends ↗
       </Link>
-      <div className="min-w-0 flex-1 px-4">
+      <Link
+        href="/my"
+        title="My Weather — personalized exposure"
+        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 backdrop-blur-xl transition-colors hover:border-pulse/40 hover:text-pulse"
+      >
+        My
+      </Link>
+      {replayButton}
+      <div className="min-w-0 flex-1 overflow-hidden px-3 max-lg:hidden">
         <AlertTicker />
       </div>
       <StatChips />

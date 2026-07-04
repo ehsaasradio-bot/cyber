@@ -89,9 +89,12 @@ function heatColor(count: number, max: number): string {
 export default function Globe({
   window: win,
   view,
+  overridePoints,
 }: {
   window: "24h" | "7d";
   view: GlobeView;
+  /** Replay mode: when set, these points replace live data and arcs are hidden. */
+  overridePoints?: GlobePoint[] | null;
 }) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -110,8 +113,10 @@ export default function Globe({
 
   // Stable identities keyed on generatedAt so the globe doesn't rebuild on identical polls
   const generatedAt = data?.generatedAt;
-  const points = useMemo(() => data?.points ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
-  const arcs = useMemo(() => data?.arcs ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const livePoints = useMemo(() => data?.points ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const liveArcs = useMemo(() => data?.arcs ?? [], [generatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  const points = overridePoints ?? livePoints;
+  const arcs = overridePoints ? [] : liveArcs;
   const counts = data?.countryCounts ?? {};
   const maxCount = useMemo(() => Math.max(1, ...Object.values(counts)), [counts]);
 
