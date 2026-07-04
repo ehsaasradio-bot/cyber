@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cyberweather-db
+    environment:
+      POSTGRES_USER: cyber
+      POSTGRES_PASSWORD: cyber
+      POSTGRES_DB: cyberweather
+    ports:
+      - "5432:5432"
+    volumes:
+      - cyberweather_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyber -d cyberweather"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  cyberweather_pgdata:
