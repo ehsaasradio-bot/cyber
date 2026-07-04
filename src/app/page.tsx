@@ -1,10 +1,12 @@
 import GlassPanel from "@/components/GlassPanel";
+import GlobePanel from "@/components/GlobePanel";
 
 export default function Home() {
   return (
     <main className="relative h-screen w-screen overflow-hidden">
-      {/* Globe layer (Task 7) */}
-      <div className="absolute inset-0 z-0" id="globe-root" />
+      <div className="absolute inset-0 z-0">
+        <GlobePanel window="24h" />
+      </div>
 
       {/* Overlay layer */}
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col p-4">
