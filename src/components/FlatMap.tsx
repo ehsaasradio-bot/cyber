@@ -107,6 +107,7 @@ export default function FlatMap({
   const [vb, setVb] = useState<ViewBox>(WORLD_VB);
   const [preset, setPreset] = useState<string | null>("world");
   const [hover, setHover] = useState<{ x: number; y: number; label: string } | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [flash, setFlash] = useState<{ x: number; y: number; scale: number } | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [blasts, setBlasts] = useState<{ x: number; y: number; key: number; scale: number }[]>([]);
@@ -128,6 +129,16 @@ export default function FlatMap({
       .then((geo) => setCountries(geo.features ?? []))
       .catch(() => {});
   }, []);
+
+  // Escape exits full-screen map mode.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   useEffect(
     () =>
@@ -272,7 +283,13 @@ export default function FlatMap({
   };
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div
+      className={
+        expanded
+          ? "fixed inset-0 z-40 flex flex-col bg-void p-2"
+          : "flex h-full w-full flex-col"
+      }
+    >
       <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 px-2 pt-1">
         <button
           onClick={() => jumpTo(null)}
@@ -311,6 +328,17 @@ export default function FlatMap({
             className="size-6 rounded border border-white/10 bg-white/[0.03] font-mono text-sm leading-none text-slate-300 hover:border-neon/40 hover:text-neon"
           >
             −
+          </button>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Exit full screen (Esc)" : "Full screen map"}
+            className={`size-6 rounded border font-mono text-xs leading-none transition-colors ${
+              expanded
+                ? "border-neon/40 bg-neon/10 text-neon"
+                : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-neon/40 hover:text-neon"
+            }`}
+          >
+            {expanded ? "✕" : "⛶"}
           </button>
         </div>
       </div>

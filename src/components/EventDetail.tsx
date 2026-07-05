@@ -53,7 +53,7 @@ export default function EventDetail() {
     metaRows.push(["Location", [sel.city, sel.country].filter(Boolean).join(", ")]);
 
   return (
-    <div className="pointer-events-auto absolute bottom-44 left-1/2 z-20 w-[26rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 animate-panel-in rounded-2xl border border-white/10 bg-void/90 shadow-[0_0_40px_-10px] shadow-cyan-500/30 backdrop-blur-xl max-lg:static max-lg:mt-4 max-lg:w-full max-lg:translate-x-0">
+    <div className="pointer-events-auto absolute bottom-44 left-1/2 z-50 w-[26rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 animate-panel-in rounded-2xl border border-white/10 bg-void/90 shadow-[0_0_40px_-10px] shadow-cyan-500/30 backdrop-blur-xl max-lg:static max-lg:mt-4 max-lg:w-full max-lg:translate-x-0">
       <header className="flex items-start gap-2.5 border-b border-white/[0.06] px-4 py-3">
         <SeverityBadge severity={sel.severity} />
         <div className="min-w-0 flex-1">
