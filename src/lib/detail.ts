@@ -228,3 +228,73 @@ export async function getGroupDetail(slug: string) {
     victims,
   };
 }
+
+/* ------------------------------- Industry detail --------------------------- */
+
+export async function listIndustries() {
+  const rows = await db.execute<{ industry: string; n: number }>(sql`
+    SELECT metadata->>'industry' AS industry, count(*)::int AS n
+    FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'industry' IS NOT NULL
+      AND occurred_at >= now() - interval '90 days'
+    GROUP BY 1
+  `);
+  return new Map(rows.map((r) => [r.industry, r.n]));
+}
+
+export async function getIndustryDetail(slug: string) {
+  const weekly = await weeklyVictims(sql`metadata->>'industry' = ${slug}`);
+  const totalVictims90d = weekly.reduce((s, w) => s + w.victims, 0);
+
+  const groups = await db.execute<{ grp: string; n: number }>(sql`
+    SELECT metadata->>'group' AS grp, count(*)::int AS n FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'industry' = ${slug}
+      AND occurred_at >= now() - interval '90 days'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+  const countries = await db.execute<{ country: string; n: number }>(sql`
+    SELECT country, count(*)::int AS n FROM threat_events
+    WHERE type = 'ransomware_victim' AND metadata->>'industry' = ${slug}
+      AND country IS NOT NULL AND occurred_at >= now() - interval '90 days'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+  `);
+  const victims = await db
+    .select({
+      id: threatEvents.id,
+      title: threatEvents.title,
+      occurredAt: threatEvents.occurredAt,
+      country: threatEvents.country,
+      metadata: threatEvents.metadata,
+    })
+    .from(threatEvents)
+    .where(
+      sql`${threatEvents.type} = 'ransomware_victim' AND ${threatEvents.metadata}->>'industry' = ${slug}`,
+    )
+    .orderBy(desc(threatEvents.occurredAt))
+    .limit(30);
+
+  const news = await db
+    .select({
+      id: threatEvents.id,
+      title: threatEvents.title,
+      occurredAt: threatEvents.occurredAt,
+      source: threatEvents.source,
+      metadata: threatEvents.metadata,
+    })
+    .from(threatEvents)
+    .where(
+      sql`${threatEvents.type} = 'breaking_news' AND ${threatEvents.metadata}->>'industry' = ${slug}`,
+    )
+    .orderBy(desc(threatEvents.occurredAt))
+    .limit(15);
+
+  return {
+    slug,
+    totalVictims90d,
+    weekly,
+    groups: [...groups].map((g) => ({ name: g.grp, victims: g.n })),
+    countries: [...countries].map((c) => ({ country: c.country.trim(), victims: c.n })),
+    victims,
+    news,
+  };
+}

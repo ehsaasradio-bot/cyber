@@ -60,8 +60,9 @@ function hash(s: string): number {
 export async function GET(req: NextRequest) {
   const window = (req.nextUrl.searchParams.get("window") === "7d" ? "7d" : "24h") as Window;
   const view = req.nextUrl.searchParams.get("view") ?? "all";
+  const industry = req.nextUrl.searchParams.get("industry") ?? undefined;
   const [events, byCountry] = await Promise.all([
-    geoEvents(window, 400, VIEW_TYPES[view]),
+    geoEvents(window, 400, VIEW_TYPES[view], industry),
     countryCounts(window),
   ]);
 

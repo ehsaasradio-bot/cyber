@@ -12,7 +12,12 @@ export function windowStart(window: Window): Date {
 const SEVERITY_ORDER = sql`case ${threatEvents.severity}
   when 'critical' then 0 when 'high' then 1 when 'medium' then 2 else 3 end`;
 
-export async function geoEvents(window: Window, limit = 400, types?: string[]) {
+export async function geoEvents(
+  window: Window,
+  limit = 400,
+  types?: string[],
+  industry?: string,
+) {
   const conditions = [
     sql`${threatEvents.lat} IS NOT NULL AND ${threatEvents.occurredAt} >= ${windowStart(window).toISOString()}::timestamptz`,
   ];
@@ -20,6 +25,9 @@ export async function geoEvents(window: Window, limit = 400, types?: string[]) {
     conditions.push(
       sql`${threatEvents.type} IN (${sql.join(types.map((t) => sql`${t}`), sql`, `)})`,
     );
+  }
+  if (industry) {
+    conditions.push(sql`${threatEvents.metadata}->>'industry' = ${industry}`);
   }
   return db
     .select({

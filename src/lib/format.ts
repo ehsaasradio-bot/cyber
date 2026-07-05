@@ -26,4 +26,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   urlhaus: "URLhaus",
   ransomware_live: "RansomLive",
   threatfox: "ThreatFox",
+  hackernews: "The Hacker News",
+  bleepingcomputer: "BleepingComputer",
+  cisa_advisories: "CISA",
 };

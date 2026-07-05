@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { fetcher, slugify } from "@/lib/format";
+import { fetcher, slugify, SOURCE_LABEL, timeAgo } from "@/lib/format";
 import GlassPanel from "./GlassPanel";
 import StatChips from "./StatChips";
 import AreaTrend from "./charts/AreaTrend";
@@ -12,6 +12,8 @@ import ScatterQuad from "./charts/ScatterQuad";
 import Histogram from "./charts/Histogram";
 import Donut from "./charts/Donut";
 import Sparkline from "./charts/Sparkline";
+import SeverityBadge from "./SeverityBadge";
+import { INDUSTRIES } from "@/lib/industries";
 
 /* ---------------------------------- data --------------------------------- */
 
@@ -433,6 +435,119 @@ function SectorsPanel() {
   );
 }
 
+/* ---------------------------- breaking news (j) ---------------------------- */
+
+interface NewsArticle {
+  id: number;
+  title: string;
+  severity: string;
+  source: string;
+  occurredAt: string;
+  metadata: { link?: string } | null;
+}
+
+function useNews() {
+  return useSWR<{ articles: NewsArticle[] }>("/api/news?limit=12", fetcher, {
+    refreshInterval: 300_000,
+    keepPreviousData: true,
+  });
+}
+
+function NewsPanel() {
+  const { data, isLoading } = useNews();
+  if (isLoading && !data) return <Skeleton rows={8} />;
+  const articles = data?.articles ?? [];
+  if (articles.length === 0) return <AwaitingSignal />;
+  return (
+    <ul className="divide-y divide-white/[0.04]">
+      {articles.map((a) => {
+        const link = a.metadata?.link;
+        return (
+          <li key={a.id}>
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-white/[0.04]"
+            >
+              <SeverityBadge severity={a.severity} />
+              <span className="min-w-0 flex-1 truncate text-[13px] text-slate-200">
+                {a.title}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                {SOURCE_LABEL[a.source] ?? a.source} · {timeAgo(a.occurredAt)}
+              </span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/* --------------------------- industry pressure (k) ------------------------- */
+
+interface IndustryCount {
+  slug: string;
+  label: string;
+  victims: number;
+}
+
+function useIndustryCounts() {
+  const { data } = useSWR<{ sectors: { name: string; victims: number }[] }>(
+    "/api/trends/sectors",
+    fetcher,
+  );
+  const counts: IndustryCount[] = INDUSTRIES.map((ind) => ({
+    slug: ind.slug,
+    label: ind.label,
+    victims: (data?.sectors ?? [])
+      .filter((s) => ind.sectors.includes(s.name))
+      .reduce((sum, s) => sum + s.victims, 0),
+  })).sort((a, b) => b.victims - a.victims);
+  return { counts, isLoading: !data };
+}
+
+function IndustryPanel() {
+  const { counts, isLoading } = useIndustryCounts();
+  if (isLoading) return <Skeleton rows={8} />;
+  const max = Math.max(1, ...counts.map((c) => c.victims));
+  return (
+    <div className="flex flex-col gap-1 p-4">
+      {counts.map((c, i) => (
+        <Link
+          key={c.slug}
+          href={`/industry/${c.slug}`}
+          className="group flex items-center gap-3 rounded px-1 py-1 transition-colors hover:bg-white/[0.05]"
+        >
+          <span
+            className={`w-44 shrink-0 truncate font-mono text-[11px] ${
+              i === 0 ? "font-semibold text-pulse" : "text-slate-400"
+            }`}
+          >
+            {c.label}
+          </span>
+          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-pulse/80 to-neon/80"
+              style={{ width: `${(c.victims / max) * 100}%` }}
+            />
+          </div>
+          <span className="w-10 shrink-0 text-right font-mono text-[11px] tabular-nums text-slate-300">
+            {c.victims}
+          </span>
+          <span className="shrink-0 font-mono text-[11px] text-pulse opacity-0 transition-opacity group-hover:opacity-100">
+            →
+          </span>
+        </Link>
+      ))}
+      <Caption>
+        <span>Ransomware victims by industry · 90 days · click for industry watch</span>
+      </Caption>
+    </div>
+  );
+}
+
 /* ---------------------------------- page --------------------------------- */
 
 export default function TrendsDashboard() {
@@ -448,6 +563,12 @@ export default function TrendsDashboard() {
         <span className="rounded-full border border-pulse/30 bg-pulse/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-pulse">
           Trend Analytics
         </span>
+        <Link
+          href="/industry"
+          className="hidden rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition-colors hover:border-neon/40 hover:text-neon sm:block"
+        >
+          Industries
+        </Link>
         <Link
           href="/my"
           className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition-colors hover:border-pulse/40 hover:text-pulse"
@@ -519,6 +640,20 @@ export default function TrendsDashboard() {
           className="animate-panel-in [animation-delay:700ms]"
         >
           <SectorsPanel />
+        </GlassPanel>
+
+        <GlassPanel
+          title="Industry Pressure · 90 Days"
+          className="animate-panel-in [animation-delay:750ms]"
+        >
+          <IndustryPanel />
+        </GlassPanel>
+
+        <GlassPanel
+          title="Breaking News"
+          className="animate-panel-in max-h-96 [animation-delay:800ms]"
+        >
+          <NewsPanel />
         </GlassPanel>
       </div>
     </div>

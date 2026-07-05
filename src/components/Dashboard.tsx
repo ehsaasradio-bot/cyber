@@ -11,9 +11,11 @@ import Timeline from "./Timeline";
 import StatChips from "./StatChips";
 import AlertTicker from "./AlertTicker";
 import ViewSelect, { type GlobeView } from "./ViewSelect";
+import IndustrySelect from "./IndustrySelect";
 import EventDetail from "./EventDetail";
 import ForecastStrip from "./ForecastStrip";
 import BriefingBanner from "./BriefingBanner";
+import NewsTicker from "./NewsTicker";
 import { ReplayHud, useReplay } from "./ReplayControl";
 
 type Win = "24h" | "7d";
@@ -21,17 +23,23 @@ type Win = "24h" | "7d";
 export default function Dashboard() {
   const [win, setWin] = useState<Win>("24h");
   const [view, setView] = useState<GlobeView>("all");
+  const [industry, setIndustry] = useState<string | null>(null);
   const replay = useReplay();
 
-  // Deep link from /trends: /?country=NL flies the globe to that country's
-  // worst recent event once the globe has mounted.
+  // Deep link from /trends or /industry: /?country=NL or /?industry=SLUG flies
+  // the globe to the top matching event once the globe has mounted.
   useEffect(() => {
-    const country = new URLSearchParams(window.location.search).get("country");
-    if (!country || !/^[A-Za-z]{2}$/.test(country)) return;
+    const params = new URLSearchParams(window.location.search);
+    const country = params.get("country");
+    const industryParam = params.get("industry");
+    if ((!country || !/^[A-Za-z]{2}$/.test(country)) && !industryParam) return;
     setWin("7d");
+    if (industryParam) setIndustry(industryParam);
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/globe?window=7d&view=all");
+      const qs = new URLSearchParams({ window: "7d", view: "all" });
+      if (industryParam) qs.set("industry", industryParam);
+      const res = await fetch(`/api/globe?${qs}`);
       if (!res.ok) return;
       const { points } = (await res.json()) as {
         points: {
@@ -40,7 +48,9 @@ export default function Dashboard() {
           ip: string | null; occurredAt: string; metadata: Record<string, unknown> | null;
         }[];
       };
-      const target = points.find((p) => p.country === country.toUpperCase());
+      const target = country
+        ? points.find((p) => p.country === country.toUpperCase())
+        : points[0];
       if (!target || cancelled) return;
       // Globe mounts async (dynamic import + entrance flight) — wait it out
       await new Promise((r) => setTimeout(r, 2_800));
@@ -79,12 +89,13 @@ export default function Dashboard() {
   return (
     <div className="relative h-screen w-full overflow-hidden max-lg:h-auto max-lg:overflow-visible">
       <div className="absolute inset-0 z-0 max-lg:relative max-lg:h-[50vh]">
-        <GlobePanel window={win} view={view} overridePoints={replay.points} />
+        <GlobePanel window={win} view={view} industry={industry} overridePoints={replay.points} />
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col p-4 max-lg:relative max-lg:inset-auto">
         <Header
           viewSelect={<ViewSelect view={view} onChange={setView} />}
+          industrySelect={<IndustrySelect industry={industry} onChange={setIndustry} />}
           replayButton={
             !replay.active ? (
               <button
@@ -99,6 +110,7 @@ export default function Dashboard() {
         />
         <ForecastStrip />
         <BriefingBanner />
+        <NewsTicker />
         <ReplayHud replay={replay} />
         <EventDetail />
 
@@ -132,9 +144,11 @@ export default function Dashboard() {
 
 function Header({
   viewSelect,
+  industrySelect,
   replayButton,
 }: {
   viewSelect: React.ReactNode;
+  industrySelect: React.ReactNode;
   replayButton?: React.ReactNode;
 }) {
   return (
@@ -146,6 +160,13 @@ function Header({
         Live
       </span>
       {viewSelect}
+      {industrySelect}
+      <Link
+        href="/industry"
+        className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 backdrop-blur-xl transition-colors hover:border-neon/40 hover:text-neon xl:flex"
+      >
+        Industries
+      </Link>
       <Link
         href="/trends"
         className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 backdrop-blur-xl transition-colors hover:border-neon/40 hover:text-neon"

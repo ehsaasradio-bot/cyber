@@ -37,11 +37,15 @@ interface OverridePoint {
 export default function GlobePanel({
   window,
   view,
+  industry,
   overridePoints,
 }: {
   window: "24h" | "7d";
   view: import("./ViewSelect").GlobeView;
+  industry?: string | null;
   overridePoints?: OverridePoint[] | null;
 }) {
-  return <Globe window={window} view={view} overridePoints={overridePoints} />;
+  return (
+    <Globe window={window} view={view} industry={industry} overridePoints={overridePoints} />
+  );
 }

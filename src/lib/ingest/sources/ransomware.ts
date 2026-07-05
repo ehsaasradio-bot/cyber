@@ -1,5 +1,6 @@
 import type { NewThreatEvent } from "../../db/schema";
 import { countryCentroid } from "../countryCentroids";
+import { industryForSector } from "../../industries";
 import { fetchWithTimeout, sleep, type Cursor, type FeedSource } from "../types";
 
 const BASE = "https://api.ransomware.live/v2";
@@ -49,6 +50,7 @@ function toEvent(v: Victim): NewThreatEvent | null {
       group: v.group,
       victim: v.victim,
       sector: v.activity,
+      industry: industryForSector(v.activity),
       domain: v.domain,
       page: v.url,
     },
@@ -62,8 +64,15 @@ export const ransomwareSource: FeedSource = {
     let fetched = 0;
 
     for (const [year, month] of monthsToFetch(cursor)) {
-      const res = await fetchWithTimeout(`${BASE}/victims/${year}/${month}`, {}, 90_000);
-      const victims = (await res.json()) as Victim[];
+      // The current month 404s until ransomware.live has published anything for it —
+      // treat that as "no victims yet", not a failure of the whole ingest run.
+      let victims: Victim[] = [];
+      try {
+        const res = await fetchWithTimeout(`${BASE}/victims/${year}/${month}`, {}, 90_000);
+        victims = (await res.json()) as Victim[];
+      } catch (err) {
+        if (!(err instanceof Error && err.message.includes("404"))) throw err;
+      }
       fetched += victims.length;
       for (const v of victims) {
         const e = toEvent(v);

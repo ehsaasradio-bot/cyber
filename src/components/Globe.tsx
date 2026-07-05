@@ -89,10 +89,12 @@ function heatColor(count: number, max: number): string {
 export default function Globe({
   window: win,
   view,
+  industry,
   overridePoints,
 }: {
   window: "24h" | "7d";
   view: GlobeView;
+  industry?: string | null;
   /** Replay mode: when set, these points replace live data and arcs are hidden. */
   overridePoints?: GlobePoint[] | null;
 }) {
@@ -106,7 +108,7 @@ export default function Globe({
   const [deep, setDeep] = useState(false);
 
   const { data } = useSWR<GlobePayload>(
-    `/api/globe?window=${win}&view=${view}`,
+    `/api/globe?window=${win}&view=${view}${industry ? `&industry=${industry}` : ""}`,
     fetcher,
     { refreshInterval: 60_000, keepPreviousData: true },
   );
