@@ -10,7 +10,22 @@ import SeverityBadge from "./SeverityBadge";
 interface Profile {
   vendors: string[];
   sector: string | null;
+  watch: string[];
 }
+
+interface WatchHit {
+  term: string;
+  cveHits: { cveId: string; vendor: string | null; product: string | null; priorityScore: number }[];
+  newsHits: { id: number; title: string; occurredAt: string; link: string | null }[];
+  eventHits: { id: number; title: string; type: string; occurredAt: string }[];
+  total: number;
+}
+
+const WATCH_SUGGESTIONS = [
+  "Kubernetes", "Docker", "Microservices", "S3 Bucket", "BigQuery",
+  "OCI", "GCP", "Azure", "Alibaba Cloud", "Mambu", "SWIFT", "Thunes",
+  "Cryptocurrency", "Quantum Encryption",
+];
 
 interface VendorOption {
   name: string;
@@ -39,13 +54,15 @@ interface IndexEntry {
 const STORAGE_KEY = "cw-profile";
 
 function loadProfile(): Profile {
+  const empty: Profile = { vendors: [], sector: null, watch: [] };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as Profile;
+    // Spread over defaults so profiles saved before `watch` existed still work.
+    if (raw) return { ...empty, ...(JSON.parse(raw) as Partial<Profile>) };
   } catch {
     /* fresh profile */
   }
-  return { vendors: [], sector: null };
+  return empty;
 }
 
 export default function MyWeather() {
@@ -55,7 +72,7 @@ export default function MyWeather() {
   useEffect(() => {
     const p = loadProfile();
     setProfile(p);
-    setEditing(p.vendors.length === 0);
+    setEditing(p.vendors.length === 0 && p.watch.length === 0);
   }, []);
 
   const save = (p: Profile) => {
@@ -79,6 +96,13 @@ export default function MyWeather() {
     { refreshInterval: 300_000, keepPreviousData: true },
   );
   const { data: idx } = useSWR<{ sectors: IndexEntry[] }>("/api/index", fetcher);
+  const { data: watchData } = useSWR<{ results: WatchHit[] }>(
+    profile && profile.watch.length > 0
+      ? `/api/profile/watch?terms=${encodeURIComponent(profile.watch.join(","))}`
+      : null,
+    fetcher,
+    { refreshInterval: 300_000, keepPreviousData: true },
+  );
 
   if (!profile) return null;
 
@@ -119,6 +143,14 @@ export default function MyWeather() {
             {profile.sector}
           </Link>
         )}
+        {profile.watch.map((w) => (
+          <span
+            key={w}
+            className="rounded border border-sev-medium/30 bg-sev-medium/[0.08] px-2 py-1 font-mono text-[11px] text-sev-medium"
+          >
+            👁 {w}
+          </span>
+        ))}
         <button
           onClick={() => setEditing(true)}
           className="ml-auto rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-400 transition-colors hover:border-neon/40 hover:text-neon"
@@ -158,6 +190,72 @@ export default function MyWeather() {
           </p>
         </div>
       </div>
+
+      {profile.watch.length > 0 && (
+        <GlassPanel title="Watchlist · live matches" className="max-h-[30rem]">
+          {!watchData ? (
+            <div className="space-y-3 p-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-4 animate-pulse rounded bg-white/[0.06]" />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-white/[0.04]">
+              {watchData.results.map((r) => (
+                <div key={r.term} className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[12px] font-semibold text-sev-medium">
+                      {r.term}
+                    </span>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                      {r.total} match{r.total === 1 ? "" : "es"}
+                    </span>
+                  </div>
+                  {r.total === 0 ? (
+                    <p className="mt-1 font-mono text-[11px] text-slate-600">
+                      Nothing tracked yet — quiet for now
+                    </p>
+                  ) : (
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      {r.cveHits.map((c) => (
+                        <Link
+                          key={c.cveId}
+                          href={`/cve/${c.cveId}`}
+                          className="flex items-center gap-2 font-mono text-[11px] text-slate-400 hover:text-neon"
+                        >
+                          <span className="text-neon">{c.cveId}</span>
+                          <span className="truncate text-slate-500">
+                            {[c.vendor, c.product].filter(Boolean).join(" · ")}
+                          </span>
+                        </Link>
+                      ))}
+                      {r.newsHits.map((n) => (
+                        <a
+                          key={`news-${n.id}`}
+                          href={n.link ?? undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate font-mono text-[11px] text-slate-400 hover:text-neon"
+                        >
+                          📰 {n.title}
+                        </a>
+                      ))}
+                      {r.eventHits.map((e) => (
+                        <span
+                          key={`ev-${e.id}`}
+                          className="truncate font-mono text-[11px] text-slate-400"
+                        >
+                          ⚠ {e.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassPanel>
+      )}
 
       <GlassPanel title="Your exposure · ranked" className="max-h-[30rem]">
         {!cveData ? (
@@ -221,6 +319,8 @@ function SetupForm({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(initial.vendors));
   const [sector, setSector] = useState<string | null>(initial.sector);
+  const [watch, setWatch] = useState<string[]>(initial.watch);
+  const [watchInput, setWatchInput] = useState("");
 
   const toggle = (name: string) => {
     setSelected((prev) => {
@@ -230,6 +330,14 @@ function SetupForm({
       return next;
     });
   };
+
+  const addWatch = (term: string) => {
+    const t = term.trim();
+    if (!t || t.length > 40 || watch.length >= 15 || watch.includes(t)) return;
+    setWatch((w) => [...w, t]);
+    setWatchInput("");
+  };
+  const removeWatch = (term: string) => setWatch((w) => w.filter((t) => t !== term));
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
@@ -285,9 +393,50 @@ function SetupForm({
         ))}
       </div>
 
+      <p className="mt-5 mb-2 font-mono text-[9px] uppercase tracking-widest text-slate-500">
+        Watch any technology ({watch.length}/15) — Kubernetes, Mambu, SWIFT, S3, quantum
+        encryption, anything
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {watch.map((t) => (
+          <button
+            key={t}
+            onClick={() => removeWatch(t)}
+            title="Remove"
+            className="rounded border border-sev-medium/40 bg-sev-medium/15 px-2 py-1 font-mono text-[11px] text-sev-medium hover:bg-sev-medium/25"
+          >
+            {t} ✕
+          </button>
+        ))}
+        <input
+          value={watchInput}
+          onChange={(e) => setWatchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addWatch(watchInput);
+            }
+          }}
+          placeholder="Type and press Enter…"
+          maxLength={40}
+          className="min-w-[10rem] flex-1 rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-[11px] text-slate-200 placeholder:text-slate-600 focus:border-sev-medium/40 focus:outline-none"
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {WATCH_SUGGESTIONS.filter((s) => !watch.includes(s)).map((s) => (
+          <button
+            key={s}
+            onClick={() => addWatch(s)}
+            className="rounded border border-white/10 bg-white/[0.02] px-2 py-0.5 font-mono text-[10px] text-slate-500 transition-colors hover:border-sev-medium/40 hover:text-sev-medium"
+          >
+            + {s}
+          </button>
+        ))}
+      </div>
+
       <button
-        onClick={() => onSave({ vendors: [...selected], sector })}
-        disabled={selected.size === 0}
+        onClick={() => onSave({ vendors: [...selected], sector, watch })}
+        disabled={selected.size === 0 && watch.length === 0}
         className="mt-6 rounded-lg border border-neon/40 bg-neon/15 px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-neon transition-colors hover:bg-neon/25 disabled:cursor-not-allowed disabled:opacity-40"
       >
         Save my weather

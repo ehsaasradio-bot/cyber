@@ -8,6 +8,7 @@ import {
   selectGlobeEvent,
   type GlobeFocus,
 } from "@/lib/globeBus";
+import { onCriticalPulse } from "@/lib/criticalPulse";
 import type { GlobeView } from "./ViewSelect";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -63,6 +64,7 @@ interface RingDatum {
   lng: number;
   severity: string;
   isFocus?: boolean;
+  isBlast?: boolean;
 }
 
 interface CountryFeature {
@@ -106,6 +108,7 @@ export default function Globe({
   const [hoverCountry, setHoverCountry] = useState<object | null>(null);
   const [focus, setFocus] = useState<(GlobeFocus & { at: number }) | null>(null);
   const [deep, setDeep] = useState(false);
+  const [blasts, setBlasts] = useState<(RingDatum & { key: number })[]>([]);
 
   const { data } = useSWR<GlobePayload>(
     `/api/globe?window=${win}&view=${view}${industry ? `&industry=${industry}` : ""}`,
@@ -141,8 +144,23 @@ export default function Globe({
         isFocus: true,
       });
     }
+    for (const b of blasts) merged.push(b);
     return merged;
-  }, [points, focus]);
+  }, [points, focus, blasts]);
+
+  // Blast radius: a brief, oversized shockwave ring for brand-new critical events
+  useEffect(
+    () =>
+      onCriticalPulse((e) => {
+        const key = Date.now();
+        setBlasts((prev) => [
+          ...prev,
+          { lat: e.lat, lng: e.lng, severity: e.severity, isBlast: true, key },
+        ]);
+        setTimeout(() => setBlasts((prev) => prev.filter((b) => b.key !== key)), 6_000);
+      }),
+    [],
+  );
 
   // Deep view: label the most severe events on screen once the user zooms in
   const labels = useMemo(
@@ -303,9 +321,9 @@ export default function Globe({
           ringLng="lng"
           ringColor={(r: object) => {
             const ring = r as RingDatum;
-            const base = SEVERITY_COLOR[ring.severity] ?? "#38bdf8";
+            const base = ring.isBlast ? "#f43f5e" : SEVERITY_COLOR[ring.severity] ?? "#38bdf8";
             return (t: number) => {
-              const alpha = Math.round((1 - t) * (ring.isFocus ? 220 : 160))
+              const alpha = Math.round((1 - t) * (ring.isFocus || ring.isBlast ? 220 : 160))
                 .toString(16)
                 .padStart(2, "0");
               return `${base}${alpha}`;
@@ -313,11 +331,16 @@ export default function Globe({
           }}
           ringMaxRadius={(r: object) => {
             const ring = r as RingDatum;
+            if (ring.isBlast) return 16;
             return ring.isFocus ? 9 : ring.severity === "critical" ? 6 : 3.5;
           }}
-          ringPropagationSpeed={(r: object) => ((r as RingDatum).isFocus ? 3 : 1.5)}
+          ringPropagationSpeed={(r: object) => {
+            const ring = r as RingDatum;
+            return ring.isBlast ? 4.5 : ring.isFocus ? 3 : 1.5;
+          }}
           ringRepeatPeriod={(r: object) => {
             const ring = r as RingDatum;
+            if (ring.isBlast) return 700;
             return ring.isFocus ? 900 : ring.severity === "critical" ? 1200 : 1800;
           }}
         />

@@ -5,6 +5,7 @@ import useSWR from "swr";
 import SeverityBadge from "./SeverityBadge";
 import { fetcher, slugify, SOURCE_LABEL, timeAgo } from "@/lib/format";
 import { onGlobeSelect, selectGlobeEvent, type GlobeSelection } from "@/lib/globeBus";
+import { techniquesForType } from "@/lib/mitreAttack";
 
 interface IpIntel {
   found: boolean;
@@ -97,6 +98,26 @@ export default function EventDetail() {
               </div>
             ))}
           </dl>
+        )}
+
+        {sel.type && techniquesForType(sel.type).length > 0 && (
+          <div className={metaRows.length > 0 ? "mt-2.5" : undefined}>
+            <p className="mb-1 font-mono text-[9px] uppercase tracking-widest text-slate-500">
+              Typical ATT&CK techniques
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {techniquesForType(sel.type).map((t) => (
+                <a
+                  key={t.id}
+                  href={`/attack-techniques`}
+                  title={t.name}
+                  className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-px font-mono text-[10px] text-slate-400 transition-colors hover:border-neon/40 hover:text-neon"
+                >
+                  {t.id}
+                </a>
+              ))}
+            </div>
+          </div>
         )}
 
         {sel.ip && intel?.found && (

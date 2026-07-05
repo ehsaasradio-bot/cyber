@@ -16,6 +16,15 @@ export const REGION_CENTROIDS: Record<string, { lat: number; lng: number }> = {
   APAC: { lat: 20, lng: 105 },
 };
 
+/** Approximate [minLon, minLat, maxLon, maxLat] bounding boxes — used to zoom the flat map, not for precise clipping. */
+export const REGION_BOUNDS: Record<string, [number, number, number, number]> = {
+  NA: [-170, 5, -50, 75],
+  LATAM: [-100, -58, -30, 33],
+  EU: [-25, 34, 60, 72],
+  MEA: [-20, -35, 65, 42],
+  APAC: [60, -50, 180, 55],
+};
+
 const MAP: Record<string, string[]> = {
   NA: ["US", "CA", "MX", "BM", "GL"],
   LATAM: [
