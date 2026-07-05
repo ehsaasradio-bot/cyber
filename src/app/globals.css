@@ -14,10 +14,13 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  --animate-feed-in: feed-in 0.4s ease-out both;
+  /* fill-mode "backwards" (not "both"): the end keyframes equal each element's
+     natural state, and a persisted filter/transform would trap child dropdowns
+     in a low stacking context (header dropdown under forecast strip bug) */
+  --animate-feed-in: feed-in 0.4s ease-out backwards;
   --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
-  --animate-panel-in: panel-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-bar-grow: bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-panel-in: panel-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-bar-grow: bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 
   @keyframes feed-in {
     from {

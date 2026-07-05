@@ -199,7 +199,7 @@ function Header({
   replayButton?: React.ReactNode;
 }) {
   return (
-    <header className="pointer-events-auto flex animate-panel-in flex-wrap items-center gap-x-4 gap-y-2 px-2 pb-3">
+    <header className="pointer-events-auto relative z-20 flex animate-panel-in flex-wrap items-center gap-x-4 gap-y-2 px-2 pb-3">
       <h1 className="font-mono text-lg font-semibold tracking-[0.35em] text-white">
         CYBER<span className="text-neon">WEATHER</span>
       </h1>
