@@ -8,7 +8,7 @@ const globalForDb = globalThis as unknown as {
 
 const client =
   globalForDb.dbClient ??
-  postgres(process.env.DATABASE_URL!, { max: 10, onnotice: () => {} });
+  postgres(process.env.DATABASE_URL!, { max: 5, onnotice: () => {} });
 
 // Reuse the connection pool across Next.js dev-server hot reloads
 if (process.env.NODE_ENV !== "production") globalForDb.dbClient = client;

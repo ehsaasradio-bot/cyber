@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ingest } from "@/lib/ingest";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -10,6 +9,9 @@ export async function POST(req: NextRequest) {
   }
   const source = req.nextUrl.searchParams.get("source") ?? "all";
   try {
+    // Lazy import: @/lib/ingest pulls in geoip-lite (binary .dat files, no
+    // filesystem on Workers). Loading it here keeps it out of the edge bundle.
+    const { ingest } = await import("@/lib/ingest");
     const summaries = await ingest(source.split(","));
     return NextResponse.json({ summaries });
   } catch (err) {
