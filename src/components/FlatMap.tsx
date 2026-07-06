@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/format";
 import { onGlobeFocus, selectGlobeEvent, type GlobeFocus } from "@/lib/globeBus";
 import { onCriticalPulse } from "@/lib/criticalPulse";
-import { REGION_BOUNDS, REGION_LABELS } from "@/lib/regions";
+import { REGION_BOUNDS } from "@/lib/regions";
 import type { GlobeView } from "./ViewSelect";
+import FlatControls from "./FlatControls";
+
+export interface FlatMapHandle {
+  jumpTo: (code: string | null) => void;
+  zoomBy: (factor: number) => void;
+  toggleFullscreen: () => void;
+}
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: "#f43f5e",
@@ -91,17 +98,19 @@ function clampVb(vb: ViewBox): ViewBox {
   };
 }
 
-export default function FlatMap({
-  window: win,
-  view,
-  industry,
-  overridePoints,
-}: {
+interface FlatMapProps {
   window: "24h" | "7d";
   view: GlobeView;
   industry?: string | null;
   overridePoints?: FlatPoint[] | null;
-}) {
+  /** Notifies the parent so it can render the control bar in the overlay flow. */
+  onControlState?: (s: { preset: string | null; expanded: boolean }) => void;
+}
+
+const FlatMap = forwardRef<FlatMapHandle, FlatMapProps>(function FlatMap(
+  { window: win, view, industry, overridePoints, onControlState },
+  ref,
+) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [countries, setCountries] = useState<CountryFeature[]>([]);
   const [vb, setVb] = useState<ViewBox>(WORLD_VB);
@@ -282,6 +291,17 @@ export default function FlatMap({
     });
   };
 
+  // Expose actions so the parent can drive the controls from the overlay flow
+  // (keeps the control bar out of the map's top edge, clear of the header).
+  useImperativeHandle(ref, () => ({
+    jumpTo,
+    zoomBy,
+    toggleFullscreen: () => setExpanded((v) => !v),
+  }));
+  useEffect(() => {
+    onControlState?.({ preset, expanded });
+  }, [preset, expanded, onControlState]);
+
   return (
     <div
       className={
@@ -290,58 +310,18 @@ export default function FlatMap({
           : "flex h-full w-full flex-col"
       }
     >
-      <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 px-2 pt-1">
-        <button
-          onClick={() => jumpTo(null)}
-          className={`rounded border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
-            preset === "world"
-              ? "border-neon/40 bg-neon/10 text-neon"
-              : "border-white/10 bg-white/[0.03] text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          World
-        </button>
-        {Object.entries(REGION_LABELS).map(([code, label]) => (
-          <button
-            key={code}
-            onClick={() => jumpTo(code)}
-            className={`rounded border px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
-              preset === code
-                ? "border-neon/40 bg-neon/10 text-neon"
-                : "border-white/10 bg-white/[0.03] text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            onClick={() => zoomBy(1 / 1.4)}
-            title="Zoom in"
-            className="size-6 rounded border border-white/10 bg-white/[0.03] font-mono text-sm leading-none text-slate-300 hover:border-neon/40 hover:text-neon"
-          >
-            +
-          </button>
-          <button
-            onClick={() => zoomBy(1.4)}
-            title="Zoom out"
-            className="size-6 rounded border border-white/10 bg-white/[0.03] font-mono text-sm leading-none text-slate-300 hover:border-neon/40 hover:text-neon"
-          >
-            −
-          </button>
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? "Exit full screen (Esc)" : "Full screen map"}
-            className={`size-6 rounded border font-mono text-xs leading-none transition-colors ${
-              expanded
-                ? "border-neon/40 bg-neon/10 text-neon"
-                : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-neon/40 hover:text-neon"
-            }`}
-          >
-            {expanded ? "✕" : "⛶"}
-          </button>
+      {/* In full-screen the map covers the header, so it carries its own controls. */}
+      {expanded && (
+        <div className="px-1 pb-1">
+          <FlatControls
+            preset={preset}
+            expanded
+            onJump={jumpTo}
+            onZoom={zoomBy}
+            onToggleFullscreen={() => setExpanded(false)}
+          />
         </div>
-      </div>
+      )}
 
       <div className="relative min-h-0 flex-1 p-2">
         <svg
@@ -459,4 +439,6 @@ export default function FlatMap({
       </div>
     </div>
   );
-}
+});
+
+export default FlatMap;

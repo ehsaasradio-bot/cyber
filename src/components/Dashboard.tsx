@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { focusGlobe, selectGlobeEvent } from "@/lib/globeBus";
 import GlassPanel from "./GlassPanel";
 import GlobePanel from "./GlobePanel";
-import FlatMap from "./FlatMap";
+import FlatMap, { type FlatMapHandle } from "./FlatMap";
+import FlatControls from "./FlatControls";
 import CriticalWatcher from "./CriticalWatcher";
 import StormOverlay from "./StormOverlay";
 import HeatLegend from "./HeatLegend";
@@ -31,6 +32,11 @@ export default function Dashboard() {
   const [mapMode, setMapMode] = useState<"globe" | "flat">("globe");
   const [storm, setStorm] = useState(false);
   const replay = useReplay();
+  const flatRef = useRef<FlatMapHandle>(null);
+  const [flatState, setFlatState] = useState<{ preset: string | null; expanded: boolean }>({
+    preset: "world",
+    expanded: false,
+  });
 
   // Deep link from /trends or /industry: /?country=NL or /?industry=SLUG flies
   // the globe to the top matching event once the globe has mounted.
@@ -99,7 +105,14 @@ export default function Dashboard() {
         {mapMode === "globe" ? (
           <GlobePanel window={win} view={view} industry={industry} overridePoints={replay.points} />
         ) : (
-          <FlatMap window={win} view={view} industry={industry} overridePoints={replay.points} />
+          <FlatMap
+            ref={flatRef}
+            window={win}
+            view={view}
+            industry={industry}
+            overridePoints={replay.points}
+            onControlState={setFlatState}
+          />
         )}
         <StormOverlay active={storm} />
         {view === "heat" && <HeatLegend />}
@@ -154,6 +167,17 @@ export default function Dashboard() {
         <ForecastStrip />
         <BriefingBanner />
         <NewsTicker />
+        {mapMode === "flat" && !flatState.expanded && (
+          <div className="px-2 pb-2">
+            <FlatControls
+              preset={flatState.preset}
+              expanded={flatState.expanded}
+              onJump={(code) => flatRef.current?.jumpTo(code)}
+              onZoom={(f) => flatRef.current?.zoomBy(f)}
+              onToggleFullscreen={() => flatRef.current?.toggleFullscreen()}
+            />
+          </div>
+        )}
         <ReplayHud replay={replay} />
         <EventDetail />
 
