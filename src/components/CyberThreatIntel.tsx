@@ -99,7 +99,19 @@ export default function CyberThreatIntel() {
         <span className="rounded-full border border-neon/30 bg-neon/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-neon">
           Threat Intel
         </span>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2.5">
+          <Link
+            href="/ceo"
+            className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition-colors hover:border-neon/40 hover:text-neon"
+          >
+            Board View
+          </Link>
+          <Link
+            href="/ciso"
+            className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition-colors hover:border-neon/40 hover:text-neon"
+          >
+            CISO View
+          </Link>
           <Link
             href="/my"
             className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-slate-300 transition-colors hover:border-pulse/40 hover:text-pulse"
