@@ -206,6 +206,13 @@ function Header({
       <span className="rounded-full border border-neon/30 bg-neon/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-neon">
         Live
       </span>
+      <Link
+        href="/cyberthreatintel"
+        title="Cyber Threat Intel — your priorities, not raw data"
+        className="flex items-center gap-1.5 rounded-lg border border-pulse/40 bg-pulse/[0.1] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-pulse backdrop-blur-xl transition-colors hover:bg-pulse/20"
+      >
+        ⚡ Intel
+      </Link>
       {mapModeToggle}
       {viewSelect}
       {industrySelect}
