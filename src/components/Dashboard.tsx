@@ -119,6 +119,12 @@ export default function Dashboard() {
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col p-4 max-lg:relative max-lg:inset-auto">
+        {/* Scrim: keeps the header band legible over the busy map and prevents any
+            content behind it from bleeding through the top row. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-void/85 via-void/35 to-transparent"
+        />
         <Header
           viewSelect={<ViewSelect view={view} onChange={setView} />}
           industrySelect={<IndustrySelect industry={industry} onChange={setIndustry} />}
